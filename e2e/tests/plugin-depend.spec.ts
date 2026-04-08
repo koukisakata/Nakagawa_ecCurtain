@@ -69,7 +69,7 @@ test.describe('Plugin Depend', () => {
     await horizon.インストール();
   });
 
-  test('install_enable_disable_enable_disable_remove_store', async ({ page, db, config }) => {
+  test('test_install_enable_disable_enable_disable_remove_store', async ({ page, db, config }) => {
     const horizon = await HorizonStore.start(page, db, config);
     await horizon.インストール();
     await horizon.有効化();

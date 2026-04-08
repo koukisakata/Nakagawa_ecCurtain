@@ -60,4 +60,22 @@ test.describe('Plugin Update', () => {
     await horizon.無効化();
     await horizon.削除();
   });
+
+  test('test_install_update_enable_disable_remove_store', async ({ page, db, config }) => {
+    const horizon = await HorizonStore.start(page, db, config);
+    await horizon.インストール();
+    await horizon.アップデート();
+    await horizon.有効化();
+    await horizon.無効化();
+    await horizon.削除();
+  });
+
+  test('test_install_update_enable_disable_remove_local', async ({ page, db, config }) => {
+    const horizon = await HorizonLocal.start(page, db, config);
+    await horizon.インストール();
+    await horizon.アップデート();
+    await horizon.有効化();
+    await horizon.無効化();
+    await horizon.削除();
+  });
 });
