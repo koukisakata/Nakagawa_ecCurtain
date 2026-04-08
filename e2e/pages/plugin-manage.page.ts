@@ -1,0 +1,182 @@
+import { type Page, type Locator, expect } from '@playwright/test';
+
+/**
+ * プラグイン管理ページ (インストールプラグイン一覧)
+ * Codeception の PluginManagePage に相当
+ */
+export class PluginManagePage {
+  /** フラッシュメッセージ (成功/エラー) のセレクタ */
+  static readonly ALERT_SELECTOR = '#page_admin_store_plugin .c-contentsArea .alert-dismissible:not(.alert-primary) span';
+
+  constructor(private readonly page: Page) {}
+
+  static async at(page: Page): Promise<PluginManagePage> {
+    await expect(page.locator('.c-pageTitle')).toContainText('インストールプラグイン一覧', { timeout: 30_000 });
+    return new PluginManagePage(page);
+  }
+
+  // ============================================================
+  // ストアプラグイン (オーナーズストアのプラグイン)
+  // ============================================================
+
+  private storePluginSection(): Locator {
+    return this.page.locator('.card').filter({
+      has: this.page.locator('h5.box-title', { hasText: 'オーナーズストアのプラグイン' }),
+    });
+  }
+
+  private storePluginRow(code: string): Locator {
+    return this.storePluginSection()
+      .getByRole('row')
+      .filter({ has: this.page.locator('td p', { hasText: code }) });
+  }
+
+  async ストアプラグイン_有効化(code: string, expectedMessage = '有効にしました。'): Promise<this> {
+    await this.dismissAlerts();
+    const row = this.storePluginRow(code);
+    await row.locator('i[title="有効化"]').locator('..').click();
+    await this.page.waitForLoadState('load');
+    await expect(this.page.locator(PluginManagePage.ALERT_SELECTOR)).toContainText(expectedMessage, { timeout: 30_000 });
+    return this;
+  }
+
+  async ストアプラグイン_無効化(code: string, expectedMessage = '無効にしました。'): Promise<this> {
+    await this.dismissAlerts();
+    const row = this.storePluginRow(code);
+    await row.locator('i[title="無効化"]').locator('..').click();
+    await this.page.waitForLoadState('load');
+    await expect(this.page.locator(PluginManagePage.ALERT_SELECTOR)).toContainText(expectedMessage, { timeout: 30_000 });
+    return this;
+  }
+
+  async ストアプラグイン_削除(code: string, expectedMessage = '削除が完了しました。'): Promise<this> {
+    await this.dismissAlerts();
+    const row = this.storePluginRow(code);
+    await row.locator('i[title="削除"]').locator('..').click();
+
+    const modal = this.page.locator('#officialPluginDeleteModal');
+    await expect(modal.locator('#officialPluginDeleteButton')).toBeVisible({ timeout: 10_000 });
+    await modal.locator('#officialPluginDeleteButton').click();
+
+    // 削除処理完了待ち (AJAX)
+    await expect(modal.locator('.modal-body p')).toContainText(expectedMessage, { timeout: 60_000 });
+    // 「完了」ボタン (3番目のボタン) をクリック
+    await modal.locator('.modal-footer button:nth-child(3)').click();
+    return this;
+  }
+
+  async ストアプラグイン_アップデート(code: string): Promise<PluginStoreConfirmPage> {
+    const row = this.storePluginRow(code);
+    await row.locator('a.btn-ec-regular').click();
+    return PluginStoreConfirmPage.at(this.page);
+  }
+
+  // ============================================================
+  // 独自プラグイン (ユーザー独自プラグイン)
+  // ============================================================
+
+  private localPluginSection(): Locator {
+    return this.page.locator('.card').filter({
+      has: this.page.locator('h5.box-title', { hasText: 'ユーザー独自プラグイン' }),
+    });
+  }
+
+  private localPluginRow(code: string): Locator {
+    return this.localPluginSection()
+      .getByRole('row')
+      .filter({ hasText: code });
+  }
+
+  async 独自プラグイン_有効化(code: string): Promise<this> {
+    await this.dismissAlerts();
+    const row = this.localPluginRow(code);
+    await row.locator('i[title="有効化"]').locator('..').click();
+    await this.page.waitForLoadState('load');
+    await expect(this.page.locator(PluginManagePage.ALERT_SELECTOR)).toContainText('有効にしました。', { timeout: 30_000 });
+    return this;
+  }
+
+  async 独自プラグイン_無効化(code: string): Promise<this> {
+    await this.dismissAlerts();
+    const row = this.localPluginRow(code);
+    await row.locator('i[title="無効化"]').locator('..').click();
+    await this.page.waitForLoadState('load');
+    await expect(this.page.locator(PluginManagePage.ALERT_SELECTOR)).toContainText('無効にしました。', { timeout: 30_000 });
+    return this;
+  }
+
+  async 独自プラグイン_削除(code: string): Promise<this> {
+    await this.dismissAlerts();
+    const row = this.localPluginRow(code);
+    await row.locator('i[title="削除"]').locator('..').click();
+
+    const modal = this.page.locator('#localPluginDeleteModal');
+    await expect(modal.locator('.modal-footer a')).toBeVisible({ timeout: 10_000 });
+    await modal.locator('.modal-footer a').click();
+    await this.page.waitForLoadState('load');
+    return this;
+  }
+
+  async 独自プラグイン_アップデート(code: string, tgzPath: string): Promise<this> {
+    const row = this.localPluginRow(code);
+    // ファイル選択
+    const fileInput = row.locator('input[type="file"]');
+    await fileInput.setInputFiles(tgzPath);
+    // アップデートボタンクリック
+    await row.locator('button.btn-primary').click();
+    await this.page.waitForLoadState('load');
+    await expect(this.page.locator(PluginManagePage.ALERT_SELECTOR)).toContainText('アップデートしました。', { timeout: 30_000 });
+    return this;
+  }
+
+  // ============================================================
+  // ヘルパー
+  // ============================================================
+
+  private async dismissAlerts(): Promise<void> {
+    // 既存のフラッシュメッセージを閉じる (クリックを遮らないように)
+    const closeButtons = this.page.locator('.alert-dismissible .btn-close');
+    const count = await closeButtons.count();
+    for (let i = 0; i < count; i++) {
+      await closeButtons.nth(i).click().catch(() => {});
+    }
+    // tooltip も除去
+    await this.page.evaluate(() => {
+      document.querySelectorAll('.tooltip').forEach(e => e.remove());
+    });
+  }
+}
+
+/**
+ * プラグインストアインストール確認 / アップデート確認ページ
+ * Codeception の PluginStoreInstallPage / PluginStoreUpgradePage を統合
+ */
+export class PluginStoreConfirmPage {
+  constructor(private readonly page: Page) {}
+
+  static async at(page: Page): Promise<PluginStoreConfirmPage> {
+    await expect(page.locator('.c-pageTitle')).toContainText('オーナーズストア', { timeout: 30_000 });
+    return new PluginStoreConfirmPage(page);
+  }
+
+  async インストール(expectedMessage = 'インストールが完了しました。'): Promise<PluginManagePage> {
+    // 「インストール」or「アップデート」ボタンでモーダルを開く
+    await this.page.locator('#plugin-list button.btn-primary').click();
+
+    const modal = this.page.locator('#installModal');
+    await expect(modal.locator('#installBtn')).toBeVisible({ timeout: 60_000 });
+    await modal.locator('#installBtn').click();
+
+    // AJAX チェーン完了待ち: 「完了」リンクが表示される
+    const completionLink = modal.locator('.modal-footer a');
+    await expect(completionLink).toBeVisible({ timeout: 60_000 });
+    await expect(modal.locator('.modal-body > p')).toContainText(expectedMessage);
+    await completionLink.click();
+
+    return PluginManagePage.at(this.page);
+  }
+
+  async アップデート(): Promise<PluginManagePage> {
+    return this.インストール('インストールが完了しました。');
+  }
+}
