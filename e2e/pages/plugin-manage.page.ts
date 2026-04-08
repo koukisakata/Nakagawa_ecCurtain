@@ -60,10 +60,24 @@ export class PluginManagePage {
 
     const modal = this.page.locator('#officialPluginDeleteModal');
     await expect(modal.locator('#officialPluginDeleteButton')).toBeVisible({ timeout: 10_000 });
-    await modal.locator('#officialPluginDeleteButton').click();
 
-    // 削除処理完了待ち (AJAX / composer uninstall が遅い場合がある)
-    await expect(modal.locator('.modal-body p')).toContainText(expectedMessage, { timeout: 120_000 });
+    // DELETE AJAX レスポンスを直接待つ (composer remove は CI で数分かかる場合がある)
+    // DOM テキストのポーリングではなく、HTTPレスポンス完了を待つことで安定性を確保
+    const deleteResponsePromise = this.page.waitForResponse(
+      resp => resp.request().method() === 'DELETE' && resp.url().includes('/uninstall'),
+      { timeout: 300_000 }
+    );
+    await modal.locator('#officialPluginDeleteButton').click();
+    await deleteResponsePromise;
+
+    // DELETE 成功後、JS が maintenance disable POST を送信するので、それも待つ
+    await this.page.waitForResponse(
+      resp => resp.request().method() === 'POST' && resp.url().includes('maintenance'),
+      { timeout: 30_000 }
+    );
+
+    // DOM に結果が反映されるのを待つ
+    await expect(modal.locator('.modal-body p')).toContainText(expectedMessage, { timeout: 10_000 });
     // 「完了」ボタン (3番目のボタン) をクリック
     await modal.locator('.modal-footer button:nth-child(3)').click();
     return this;
@@ -169,11 +183,25 @@ export class PluginStoreConfirmPage {
 
     const modal = this.page.locator('#installModal');
     await expect(modal.locator('#installBtn')).toBeVisible({ timeout: 60_000 });
+
+    // AJAX チェーン (composer require → schema update → update → maintenance disable) を待つ
+    // composer require が CI で数分かかる場合があるため、最後の maintenance POST を待つ
+    const maintenanceResponsePromise = this.page.waitForResponse(
+      resp => resp.request().method() === 'POST' && resp.url().includes('maintenance'),
+      { timeout: 300_000 }
+    );
     await modal.locator('#installBtn').click();
 
-    // AJAX チェーン完了待ち: 「完了」リンクが表示される
+    // エラーレスポンス (4xx/5xx) が先に返る場合もあるので、completionLink OR failメッセージを待つ
     const completionLink = modal.locator('.modal-footer a');
-    await expect(completionLink).toBeVisible({ timeout: 60_000 });
+    try {
+      await maintenanceResponsePromise;
+    } catch {
+      // maintenance が来ない場合 (エラー系) はDOMフォールバック
+    }
+
+    // DOM に結果が反映されるのを待つ
+    await expect(completionLink).toBeVisible({ timeout: 30_000 });
     await expect(modal.locator('.modal-body > p')).toContainText(expectedMessage);
     await completionLink.click();
 
