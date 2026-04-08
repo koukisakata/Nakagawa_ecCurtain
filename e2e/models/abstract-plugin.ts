@@ -14,6 +14,7 @@ export abstract class AbstractPlugin {
 
   protected initialized = false;
   protected enabled = false;
+  protected removed = false;
 
   protected tables: string[] = [];
   protected columns: string[] = [];
