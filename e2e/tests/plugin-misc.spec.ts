@@ -7,6 +7,23 @@ import { emptyDir } from '../helpers/tar-helper';
 import fs from 'fs';
 import path from 'path';
 
+/**
+ * 前回テスト失敗時に残ったHorizonプラグインを削除する
+ */
+async function cleanupHorizon(page: import('@playwright/test').Page, db: import('../helpers/db-client').DbClient, config: import('../fixtures/plugin-test').PluginTestConfig) {
+  const plugin = await db.getPlugin('Horizon');
+  if (!plugin) return;
+
+  await page.goto(`/${config.adminRoute}/store/plugin`);
+  await page.waitForLoadState('load');
+  const managePage = await PluginManagePage.at(page);
+
+  if (plugin.enabled) {
+    await managePage.ストアプラグイン_無効化('Horizon');
+  }
+  await managePage.ストアプラグイン_削除('Horizon');
+}
+
 test.describe('Plugin Misc', () => {
   test.beforeEach(async ({ config }) => {
     emptyDir(config.reposDir);
@@ -46,6 +63,9 @@ test.describe('Plugin Misc', () => {
   });
 
   test('test_install_enable_enable', async ({ page, db, config }) => {
+    // 前回テスト失敗時の残りプラグインを削除
+    await cleanupHorizon(page, db, config);
+
     const horizon = await HorizonStore.start(page, db, config);
     await horizon.インストール();
 
@@ -56,9 +76,16 @@ test.describe('Plugin Misc', () => {
     // 元のタブに戻る
     await horizon.タブを切り替え(originalPage);
     await horizon.既に有効なものを有効化();
+
+    // クリーンアップ
+    await horizon.無効化();
+    await horizon.削除();
   });
 
   test('test_install_disable_disable', async ({ page, db, config }) => {
+    // 前回テスト失敗時の残りプラグインを削除
+    await cleanupHorizon(page, db, config);
+
     const horizon = await HorizonStore.start(page, db, config);
     await horizon.インストール();
     await horizon.有効化();
@@ -70,6 +97,9 @@ test.describe('Plugin Misc', () => {
     // 元のタブに戻る
     await horizon.タブを切り替え(originalPage);
     await horizon.既に無効なものを無効化();
+
+    // クリーンアップ
+    await horizon.削除();
   });
 
   test('test_install_enable_disable_enable_disable_remove_local_ファイルアップロード制限', async ({ page, config }) => {
