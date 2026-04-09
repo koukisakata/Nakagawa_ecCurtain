@@ -13,7 +13,7 @@ export default function globalSetup() {
   console.log('Setting up test fixtures...');
   try {
     const output = execSync(
-      `${phpBin} e2e/setup-fixtures.php`,
+      `${phpBin} -d memory_limit=512M e2e/setup-fixtures.php`,
       {
         cwd: projectDir,
         timeout: 120_000,

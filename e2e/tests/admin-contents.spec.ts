@@ -437,7 +437,7 @@ test.describe.serial('Layout management', () => {
         });
         if (!blockEl) throw new Error(`Block "${blockName}" not found`);
 
-        const sourceParent = blockEl.parentElement;
+        const sourceParent = (blockEl as Element).parentElement;
         const target = document.getElementById(targetPositionId);
         if (!target) throw new Error(`Target "${targetPositionId}" not found`);
 

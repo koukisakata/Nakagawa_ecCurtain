@@ -56,7 +56,7 @@ export default defineConfig({
     },
     {
       name: 'front-tests',
-      testMatch: /front-.*\.spec\.ts/,
+      testMatch: /(front-|deny).*\.spec\.ts/,
       dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],

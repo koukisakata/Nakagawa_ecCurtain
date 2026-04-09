@@ -1,6 +1,4 @@
 import { test, expect } from '@playwright/test';
-import fs from 'fs';
-import path from 'path';
 import { authenticator } from '@otplib/preset-default';
 
 const adminRoute = process.env.ECCUBE_ADMIN_ROUTE || 'admin';
@@ -31,35 +29,14 @@ async function loginAsMember(page: import('@playwright/test').Page, email: strin
 }
 
 /**
- * Helper: Get an active customer email from admin storage state.
+ * テスト用顧客のメールアドレス (globalSetup の setup-fixtures.php で作成)
  */
-async function getActiveCustomerEmail(page: import('@playwright/test').Page): Promise<string> {
-  const authFile = path.join(__dirname, '..', '.auth', 'admin.json');
-  if (!fs.existsSync(authFile)) {
-    // If no auth file, fall back to first customer via admin login
-    const browser = page.context().browser()!;
-    const adminContext = await browser.newContext();
-    const adminPage = await adminContext.newPage();
-    await adminPage.goto(`/${adminRoute}/`);
-    await adminPage.locator('#login_id').fill(process.env.ADMIN_USER || 'admin');
-    await adminPage.locator('#password').fill(process.env.ADMIN_PASSWORD || 'password');
-    await adminPage.getByRole('button', { name: 'ログイン' }).click();
-    await expect(adminPage.locator('.c-pageTitle__titles')).toContainText('ホーム', { timeout: 30_000 });
-    await adminPage.goto(`/${adminRoute}/customer/1/edit`);
-    await adminPage.waitForLoadState('load');
-    const email = await adminPage.locator('#admin_customer_email').inputValue();
-    await adminContext.close();
-    return email;
-  }
-  const storageState = JSON.parse(fs.readFileSync(authFile, 'utf-8'));
-  const browser = page.context().browser()!;
-  const adminContext = await browser.newContext({ storageState });
-  const adminPage = await adminContext.newPage();
-  await adminPage.goto(`/${adminRoute}/customer/1/edit`);
-  await adminPage.waitForLoadState('load');
-  const email = await adminPage.locator('#admin_customer_email').inputValue();
-  await adminContext.close();
-  return email;
+function getTestCustomerEmail(): string {
+  return process.env.CUSTOMER_EMAIL || 'playwright@test.test';
+}
+
+function getTestCustomerPassword(): string {
+  return process.env.CUSTOMER_PASSWORD || 'password';
 }
 
 /**
@@ -369,7 +346,7 @@ test.describe('Throttling (EF09)', () => {
   test('会員情報編集', async ({ page }) => {
     test.setTimeout(180_000);
 
-    const email = await getActiveCustomerEmail(page);
+    const email = getTestCustomerEmail();
     await loginAsMember(page, email);
 
     for (let i = 0; i < 10; i++) {
@@ -396,7 +373,7 @@ test.describe('Throttling (EF09)', () => {
   test('配送先情報_追加', async ({ page }) => {
     test.setTimeout(300_000);
 
-    const email = await getActiveCustomerEmail(page);
+    const email = getTestCustomerEmail();
     await loginAsMember(page, email);
 
     for (let i = 0; i < 10; i++) {
@@ -422,7 +399,7 @@ test.describe('Throttling (EF09)', () => {
   test('配送先情報_編集', async ({ page }) => {
     test.setTimeout(300_000);
 
-    const email = await getActiveCustomerEmail(page);
+    const email = getTestCustomerEmail();
     await loginAsMember(page, email);
 
     // First, create a delivery address to edit
@@ -461,7 +438,7 @@ test.describe('Throttling (EF09)', () => {
   test('配送先情報_削除', async ({ page }) => {
     test.setTimeout(300_000);
 
-    const email = await getActiveCustomerEmail(page);
+    const email = getTestCustomerEmail();
     await loginAsMember(page, email);
 
     // Register dialog handler once (auto-accept all confirm dialogs)

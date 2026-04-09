@@ -105,4 +105,4 @@ jobs:
           BASE_URL: 'http://127.0.0.1:8080'
           CI: 'true'
         run: |
-          npx playwright test deny.spec.ts
+          npx playwright test --project=front-tests deny.spec.ts

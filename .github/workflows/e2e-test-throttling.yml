@@ -158,6 +158,8 @@ jobs:
           ECCUBE_ADMIN_ROUTE: 'admin'
           ADMIN_USER: 'admin'
           ADMIN_PASSWORD: 'password'
+          CUSTOMER_EMAIL: 'playwright@test.test'
+          CUSTOMER_PASSWORD: 'password'
           APP_ENV: 'prod'
           CI: 'true'
           METHOD: ${{ matrix.method }}
