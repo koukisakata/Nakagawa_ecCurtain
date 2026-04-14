@@ -52,6 +52,11 @@ test.describe('Admin Basic Info (EA07)', () => {
   test('basicinfo_payment_list - EA0704-UC01-T01', async ({ page }) => {
     await page.goto(`/${adminRoute}/setting/shop/payment`);
     await page.waitForLoadState('load');
+    await ensureAdminLoggedIn(page);
+    if (!page.url().includes('/payment')) {
+      await page.goto(`/${adminRoute}/setting/shop/payment`);
+      await page.waitForLoadState('load');
+    }
     await expect(page.locator('.c-pageTitle')).toContainText('支払方法一覧');
 
     // Verify that payment methods are listed
@@ -846,7 +851,7 @@ test.describe('Admin Basic Info (EA07)', () => {
       await orderLink.click();
       await frontPage.waitForLoadState('load');
       // 'ご注文状況' should NOT be visible
-      const bodyText = await frontPage.locator('.ec-orderRole').textContent() || '';
+      const bodyText = await frontPage.locator('.ec-orderRole').first().textContent() || '';
       expect(bodyText).not.toContain('ご注文状況');
     }
 
@@ -888,7 +893,7 @@ test.describe('Admin Basic Info (EA07)', () => {
     if (await orderLink2.count() > 0) {
       await orderLink2.click();
       await frontPage2.waitForLoadState('load');
-      await expect(frontPage2.locator('.ec-orderRole')).toContainText('ご注文状況');
+      await expect(frontPage2.locator('.ec-orderRole').first()).toContainText('ご注文状況');
     }
 
     await frontContext2.close();
