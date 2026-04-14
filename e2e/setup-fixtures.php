@@ -145,5 +145,30 @@ if (!$existing) {
     echo "  Test customer already exists: $testEmail\n";
 }
 
+// --- 規格あり商品 (ID=1) に販売制限を設定 ---
+$product1 = $entityManager->getRepository(\Eccube\Entity\Product::class)->find(1);
+if ($product1) {
+    $productClasses = $entityManager->getRepository(\Eccube\Entity\ProductClass::class)
+        ->findBy(['Product' => $product1]);
+    $updated = 0;
+    foreach ($productClasses as $pc) {
+        if ($pc->getSaleLimit() === null && $pc->getClassCategory1() !== null) {
+            $pc->setSaleLimit(2);
+            $pc->setStock(10);
+            $pc->setStockUnlimited(false);
+            $ps = $entityManager->getRepository(\Eccube\Entity\ProductStock::class)
+                ->findOneBy(['ProductClass' => $pc]);
+            if ($ps) $ps->setStock(10);
+            $updated++;
+        }
+    }
+    if ($updated > 0) {
+        $entityManager->flush();
+        echo "  Set sale limit on product 1: {$updated} classes\n";
+    } else {
+        echo "  Product 1 sale limits already set\n";
+    }
+}
+
 echo "Fixtures setup complete.\n";
 $kernel->shutdown();
