@@ -1,465 +1,362 @@
-{#
-This file is part of EC-CUBE
-
-Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
-
-http://www.ec-cube.co.jp/
-
-For the full copyright and license information, please view the LICENSE
-file that was distributed with this source code.
-#}
 {% extends 'default_frame.twig' %}
 
 {% set body_class = 'product_page' %}
 
 {% block stylesheet %}
     <style>
-
-        .slick-slider {
-            margin-bottom: 30px;
-        }
-
-        .slick-dots {
-            position: absolute;
-            bottom: -45px;
-            display: block;
-            width: 100%;
-            padding: 0;
-            list-style: none;
-            text-align: center;
-        }
-
-        .slick-dots li {
-            position: relative;
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            margin: 0 5px;
-            padding: 0;
-
-            cursor: pointer;
-        }
-
-        .slick-dots li button {
-            font-size: 0;
-            line-height: 0;
-            display: block;
-            width: 20px;
-            height: 20px;
-            padding: 5px;
-            cursor: pointer;
-            color: transparent;
-            border: 0;
-            outline: none;
-            background: transparent;
-        }
-
-        .slick-dots li button:hover,
-        .slick-dots li button:focus {
-            outline: none;
-        }
-
-        .slick-dots li button:hover:before,
-        .slick-dots li button:focus:before {
-            opacity: 1;
-        }
-
-        .slick-dots li button:before {
-            content: " ";
-            line-height: 20px;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 12px;
-            height: 12px;
-            text-align: center;
-            opacity: .25;
-            background-color: black;
-            border-radius: 50%;
-
-        }
-
-        .slick-dots li.slick-active button:before {
-            opacity: .75;
-            background-color: black;
-        }
-
-        .slick-dots li button.thumbnail img {
-            width: 0;
-            height: 0;
-        }
-
+        /* レイアウト調整 */
+        .curtain-gallery-sticky { position: sticky; top: 20px; }
+        .option-section, .option-group { margin-bottom: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+        .badge-req { background: #f0ad4e; color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; vertical-align: middle; }
+        .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; }
+        .color-chip input { display: none; }
+        .chip-label { display: block; padding: 8px 4px; text-align: center; border: 1px solid #ddd; cursor: pointer; font-size: 11px; background: #fff; border-radius: 4px; }
+        .color-chip input:checked + .chip-label { background-color: #333; color: #fff; border-color: #333; font-weight: bold; }
+        input[type=range] { width: 100%; height: 8px; background: #ddd; border-radius: 5px; outline: none; margin: 10px 0; }
+        #add_to_cart:disabled { background-color: #ccc !important; border-color: #ccc !important; cursor: not-allowed; opacity: 0.6; }
+        .price-display-area { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 4px; }
+        .ec-price { font-size: 24px; color: #d9534f; font-weight: bold; }
+        .ec-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .ec-modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); }
+        .ec-modal-wrap { position: relative; background: #fff; padding: 40px; border-radius: 8px; z-index: 10000; min-width: 300px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .ec-modal-header { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 20px; }
+        .ec-modal-close { position: absolute; top: 10px; right: 15px; cursor: pointer; font-size: 20px; color: #999; }
     </style>
 {% endblock %}
 
 {% block javascript %}
     <script>
-        eccube.classCategories = {{ class_categories_as_json(Product)|raw }};
+        document.addEventListener('DOMContentLoaded', function() {
+            // PHPから送られたデバッグ情報を表示
+            console.log("🚨 PHP デバッグ情報:", "{{ DebugCsv|raw }}");
+            // 【重要】すでにJSON化されているので、json_encode フィルターは外します
+            const curtainMatrix = {{ JsonMatrix|raw }};
+            console.log("📦 展開されたマトリクス:", curtainMatrix);
+            const priceDisplay = document.getElementById('display_price');
+            const widthSlider = document.getElementById('slider-width');
+            const heightSlider = document.getElementById('slider-height');
+            const pleatsSelect = document.getElementById('opt-pleats');
+            const memorySelect = document.getElementById('opt-memory');
+            const agreeCheck = document.getElementById('agree_check');
+            const cartBtn = document.getElementById('add_to_cart');
+            
+            let currentCalculatedPrice = 0;
 
-        // 規格2に選択肢を割り当てる。
-        function fnSetClassCategories(form, classcat_id2_selected) {
-            var $form = $(form);
-            var product_id = $form.find('input[name=product_id]').val();
-            var $sele1 = $form.find('select[name=classcategory_id1]');
-            var $sele2 = $form.find('select[name=classcategory_id2]');
-            eccube.setClassCategories($form, product_id, $sele1, $sele2, classcat_id2_selected);
-        }
+            // --- detail.twig 内の window.syncToHiddenForm 関数を修正 ---
+            // --- detail.twig 内の window.syncToHiddenForm 関数を以下に差し替え ---
+            window.syncToHiddenForm = function() {
+                console.log("--- 最終同期（真の最終版）を実行中 ---");
+                const selectedRadio = document.querySelector('input[name="dummy_color_radio"]:checked');
+                if (!selectedRadio) return;
 
-        {% if form.classcategory_id2 is defined %}
-        fnSetClassCategories(
-            $('#form1'), {{ form.classcategory_id2.vars.value|json_encode|raw }}
-        );
-        {% elseif form.classcategory_id1 is defined %}
-        eccube.checkStock($('#form1'), {{ Product.id }}, {{ form.classcategory_id1.vars.value|json_encode|raw }}, null);
-        {% endif %}
-    </script>
-    <script>
-        $(function() {
-            // bfcache無効化
-            $(window).bind('pageshow', function(event) {
-                if (event.originalEvent.persisted) {
-                    location.reload(true);
-                }
-            });
+                const classId = selectedRadio.dataset.classId; // 45
+                const catId = selectedRadio.value; // 10
+                const qty = document.getElementById('visible_quantity').value;
 
-            // Core Web Vital の Cumulative Layout Shift(CLS)対策のため
-            // img タグに width, height が付与されている.
-            // 630px 未満の画面サイズでは縦横比が壊れるための対策
-            // see https://github.com/EC-CUBE/ec-cube/pull/5023
-            $('.ec-grid2__cell').hide();
-            var removeSize = function () {
-                $('.slide-item').height('');
-                $('.slide-item img')
-                    .removeAttr('width')
-                    .removeAttr('height')
-                    .removeAttr('style');
-            };
-            var slickInitial = function(slick) {
-                $('.ec-grid2__cell').fadeIn(1500);
-                var baseHeight = $(slick.target).height();
-                var baseWidth = $(slick.target).width();
-                var rate = baseWidth / baseHeight;
-
-                $('.slide-item').height(baseHeight * rate); // 余白を削除する
-                // transform を使用することでCLSの影響を受けないようにする
-                $('.slide-item img')
-                    .css(
-                        {
-                            'transform-origin': 'top left',
-                            'transform': 'scaleY(' + rate + ')',
-                            'transition': 'transform .1s'
-                        }
-                    );
-                // 正しいサイズに近くなったら属性を解除する
-                setTimeout(removeSize, 500);
-            };
-            $('.item_visual').on('init', slickInitial);
-            // リサイズ時は CLS の影響を受けないため属性を解除する
-            $(window).resize(removeSize);
-            $('.item_visual').slick({
-                dots: false,
-                arrows: false,
-                responsive: [{
-                    breakpoint: 768,
-                    settings: {
-                        dots: true
+                const fillField = (targetName, value) => {
+                    // [name="名前"] を正確に探し、あればその値を更新する
+                    const el = document.querySelector(`#eccube_standard_form [name="${targetName}"]`);
+                    if (el) {
+                        el.value = value;
+                        console.log("✅ 同期成功: " + targetName + " = " + value);
+                    } else {
+                        // もし名前が見つからない場合のみ、念のため新しく作る（保険）
+                        const newEl = document.createElement('input');
+                        newEl.type = 'hidden';
+                        newEl.name = targetName;
+                        newEl.value = value;
+                        document.getElementById('eccube_standard_form').appendChild(newEl);
+                        console.log("🛠️ フィールド作成: " + targetName);
                     }
-                }]
-            });
+                };
 
-            $('.slideThumb').on('click', function() {
-                var index = $(this).attr('data-index');
-                $('.item_visual').slick('slickGoTo', index, false);
-            })
+                // 【重要】ログで空だった "ProductClass" を最優先で埋める
+                fillField('ProductClass', classId); 
+                
+                // コントローラ側が期待しているかもしれない名前も念のため埋める
+                fillField('product_class_id', classId); 
+                
+                // 数量とカテゴリ
+                fillField('quantity', qty);
+                fillField('classcategory_id1', catId);
+
+                // カーテン専用の隠しフィールド（ID指定なのでそのままでOK）
+                const curtainFields = {
+                    'hidden_curtain_width': 'slider-width',
+                    'hidden_curtain_height': 'slider-height',
+                    'hidden_curtain_pleats': 'opt-pleats',
+                    'hidden_curtain_memory': 'opt-memory'
+                };
+                Object.keys(curtainFields).forEach(hid => {
+                    const src = document.getElementById(curtainFields[hid]);
+                    const target = document.getElementById(hid);
+                    if (src && target) target.value = src.value;
+                });
+            };
+
+            // --- 115行目付近の calculate() 関数内を修正 ---
+            function calculate() {
+                const w = parseInt(widthSlider.value);
+                const h = parseInt(heightSlider.value);
+                const pleats = pleatsSelect.value; 
+
+                const labelW = document.getElementById('val-width');
+                const labelH = document.getElementById('val-height');
+                if (labelW) labelW.textContent = w;
+                if (labelH) labelH.textContent = h;
+
+                const selectedRadio = document.querySelector('input[name="dummy_color_radio"]:checked');
+                if (!selectedRadio) {
+                    priceDisplay.textContent = '品番未選択';
+                    return;
+                }
+
+                const code = selectedRadio.dataset.code;
+                const basePrice = parseFloat(selectedRadio.dataset.price) || 0; // SQLで入れた5000円を取得
+
+                const colorNameDisplay = document.getElementById('display_color_name');
+                if (colorNameDisplay) colorNameDisplay.textContent = selectedRadio.dataset.name;
+
+                const wLimit = Math.ceil(w / 40) * 40;
+                const hLimit = Math.ceil(h / 40) * 40;
+                const pleatKey = parseFloat(pleats);
+
+                let price = 0;
+                
+                console.log("--- 🔍 マトリクス検索開始 ---");
+                console.log("1. 探す品番(code):", code);
+                console.log("2. 探す幅(wLimit):", wLimit);
+                console.log("3. 探す丈(hLimit):", hLimit);
+                console.log("4. 探すヒダ(pleats):", pleats);
+                console.log("📦 マトリクス全体:", curtainMatrix);
+
+                try {
+                    const row = curtainMatrix[code];
+                    if (!row) {
+                        console.warn("❌ 品番 [" + code + "] が見つかりません。");
+                    } else {
+                        const wData = row[wLimit];
+                        if (!wData) {
+                            console.warn("❌ 幅 [" + wLimit + "] が見つかりません。");
+                        } else {
+                            const hData = wData[hLimit];
+                            if (!hData) {
+                                console.warn("❌ 丈 [" + hLimit + "] が見つかりません。");
+                            } else {
+                                // ヒダ倍率で価格を取得
+                                price = parseFloat(hData[pleats] || hData[parseFloat(pleats)] || 0);
+                                if (price > 0) {
+                                    console.log("✅ マトリクスから価格を取得成功！:", price);
+                                } else {
+                                    console.warn("❌ サイズは合いましたが、価格が0円になっています。データ:", hData);
+                                }
+                            }
+                        }
+                    }
+                } catch (e) { 
+                    console.error("🔥 マトリクス計算エラー:", e); 
+                }
+
+                // 2. マトリクスにない場合は、DBの基本価格をベースにする
+                if (price === 0 && basePrice > 0) {
+                    price = basePrice * (w / 100) * (h / 100);
+                    console.log("💡 ベース価格(DB)から計算しました:", price);
+                }
+
+                if (price > 0) {
+                    const memoryRate = parseFloat(memorySelect.options[memorySelect.selectedIndex].dataset.rate || 0);
+                    price = price * pleatKey; // ヒダ倍率を掛ける
+                    price += (price * memoryRate);
+                    priceDisplay.textContent = '¥' + Math.floor(price).toLocaleString();
+                    currentCalculatedPrice = Math.floor(price);
+                } else {
+                    priceDisplay.textContent = '価格未設定';
+                    currentCalculatedPrice = 0;
+                }
+
+                window.syncToHiddenForm();
+            }
+
+            [widthSlider, heightSlider, pleatsSelect, memorySelect].forEach(el => el && el.addEventListener('input', calculate));
+            document.querySelectorAll('input[name="dummy_color_radio"]').forEach(radio => radio.addEventListener('change', calculate));
+            if(agreeCheck) agreeCheck.addEventListener('change', () => { cartBtn.disabled = !agreeCheck.checked; });
+
+            calculate(); 
         });
     </script>
+
     <script>
         $(function() {
             $('.add-cart').on('click', function(event) {
-                {% if form.classcategory_id1 is defined %}
-                // 規格1フォームの必須チェック
-                if ($('#classcategory_id1').val() == '__unselected' || $('#classcategory_id1').val() == '') {
-                    $('#classcategory_id1')[0].setCustomValidity('{{ 'front.product.product_class_unselected'|trans }}');
-                    return true;
-                } else {
-                    $('#classcategory_id1')[0].setCustomValidity('');
-                }
-                {% endif %}
-
-                {% if form.classcategory_id2 is defined %}
-                // 規格2フォームの必須チェック
-                if ($('#classcategory_id2').val() == '__unselected' || $('#classcategory_id2').val() == '') {
-                    $('#classcategory_id2')[0].setCustomValidity('{{ 'front.product.product_class_unselected'|trans }}');
-                    return true;
-                } else {
-                    $('#classcategory_id2')[0].setCustomValidity('');
-                }
-                {% endif %}
-
-                // 個数フォームのチェック
-                if ($('#quantity').val() < 1) {
-                    $('#quantity')[0].setCustomValidity('{{ 'front.product.invalid_quantity'|trans }}');
-                    return true;
-                } else {
-                    $('#quantity')[0].setCustomValidity('');
-                }
-
                 event.preventDefault();
-                $form = $('#form1');
-                $.ajax({
-                    url: $form.attr('action'),
-                    type: $form.attr('method'),
-                    data: $form.serialize(),
-                    dataType: 'json',
-                    beforeSend: function(xhr, settings) {
-                        // Buttonを無効にする
-                        $('.add-cart').prop('disabled', true);
-                    }
-                }).done(function(data) {
-                    // レスポンス内のメッセージをalertで表示
-                    $.each(data.messages, function() {
-                        $('#ec-modal-header').text(this);
-                    });
+                console.log("カートボタンが押されました。");
+                
+                // 送信直前に最終同期
+                if (typeof window.syncToHiddenForm === 'function') {
+                    window.syncToHiddenForm();
+                }
 
-                    $('.ec-modal').show()
-
-                    // カートブロックを更新する
-                    $.ajax({
-                        url: "{{ url('block_cart') }}",
-                        type: 'GET',
-                        dataType: 'html'
-                    }).done(function(html) {
-                        $('.ec-headerRole__cart').html(html);
-                    });
-                }).fail(function(data) {
-                    alert('{{ 'front.product.add_cart_error'|trans }}');
-                }).always(function(data) {
-                    // Buttonを有効にする
-                    $('.add-cart').prop('disabled', false);
+                const $form = $('#form1');
+                const curtainParams = $.param({
+                    curtain_width: $('#slider-width').val(),
+                    curtain_height: $('#slider-height').val(),
+                    curtain_pleats: $('#opt-pleats').val(),
+                    curtain_memory: $('#opt-memory').val()
+                    curtain_price: currentCalculatedPrice
                 });
+
+                // 【修正点】product_id は必須でした！フィルタリングを完全にやめ、
+                // EC-CUBEが生成した隠しフォームの中身を「そのまま」すべて送ります。
+                const finalSerializedData = $('#eccube_standard_form :input').serialize();
+                console.log("🔥 送信データ（product_id復活版）: ", finalSerializedData);
+
+                $.ajax({
+                    url: $form.attr('action') + '?' + curtainParams,
+                    type: 'POST',
+                    data: finalSerializedData,
+                    dataType: 'json',
+                    beforeSend: function() { $('.add-cart').prop('disabled', true); }
+                }).done(function(data) {
+                    // もし成功なら done: true が返ってきます
+                    if (data.done) {
+                        console.log("カート投入成功:", data);
+                        $.each(data.messages, function() { $('#ec-modal-header').text(this); });
+                        $('.ec-modal').show();
+                        $.ajax({
+                            url: "{{ url('block_cart') }}",
+                            type: 'GET',
+                            dataType: 'html'
+                        }).done(function(html) { $('.ec-headerRole__cart').html(html); });
+                    } else {
+                        // done: false の場合（エラー）
+                        console.error("バリデーションエラー:", data.messages);
+                        alert(data.messages.join('\n'));
+                    }
+                }).fail(function(xhr) {
+                    console.error("通信失敗:", xhr.responseText);
+                    alert('システムエラーが発生しました。');
+                }).always(function() { $('.add-cart').prop('disabled', false); });
             });
+            $('.ec-modal-overlay, .ec-modal-close').on('click', () => { $('.ec-modal').hide(); });
         });
-
-        $('.ec-modal-wrap').on('click', function(e) {
-            // モーダル内の処理は外側にバブリングさせない
-            e.stopPropagation();
-        });
-        $('.ec-modal-overlay, .ec-modal, .ec-modal-close, .ec-inlineBtn--cancel').on('click', function() {
-            $('.ec-modal').hide()
-        });
-    </script>
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org/",
-        "@type": "Product",
-        "name": "{{ Product.name }}",
-        "image": [
-            {% for img in Product.ProductImage %}
-                "{{ app.request.schemeAndHttpHost }}{{ asset(img, 'save_image') }}"{% if not loop.last %},{% endif %}
-
-            {% else %}
-                "{{ app.request.schemeAndHttpHost }}{{ asset(''|no_image_product, 'save_image') }}"
-            {% endfor %}
-        ],
-        "description": "{{ Product.description_list | default(Product.description_detail) | replace({'\n': '', '\r': ''}) | slice(0,300) }}",
-        {% if Product.code_min %}
-        "sku": "{{ Product.code_min }}",
-        {% endif %}
-        "offers": {
-            "@type": "Offer",
-            "url": "{{ url('product_detail', {'id': Product.id}) }}",
-            "priceCurrency": "{{ eccube_config.currency }}",
-            "price": {{ Product.getPrice02IncTaxMin ? Product.getPrice02IncTaxMin : 0}},
-            "availability": "{{ Product.stock_find ? "InStock" : "OutOfStock" }}"
-        }
-    }
     </script>
 {% endblock %}
 
 {% block main %}
-    <div class="ec-productRole">
-        <div class="ec-grid2">
-            <div class="ec-grid2__cell">
-                <div class="ec-sliderItemRole">
-
-                    <div class="item_visual">
-                        {% for ProductImage in Product.ProductImage %}
-                            <div class="slide-item"><img src="{{ asset(ProductImage, 'save_image') }}" alt="{{ loop.first ? Product.name : '' }}" width="550" height="550"{% if loop.index > 1 %} loading="lazy"{% endif %}></div>
-                        {% else %}
-                            <div class="slide-item"><img src="{{ asset(''|no_image_product, 'save_image') }}" alt="{{ loop.first ? Product.name : '' }}" width="550" height="550"></div>
-                        {% endfor %}
-                    </div>
-                    <div class="item_nav">
-                        {% for ProductImage in Product.ProductImage %}
-                            <div class="slideThumb" data-index="{{ loop.index0 }}"><img src="{{ asset(ProductImage, 'save_image') }}" alt="" width="133" height="133" loading="lazy"></div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-            <div class="ec-grid2__cell">
-                <div class="ec-productRole__profile">
-                    {# 商品名 #}
-                    <div class="ec-productRole__title">
-                        <h2 class="ec-headingTitle">{{ Product.name }}</h2>
-                    </div>
-                    {# タグ #}
-                    <ul class="ec-productRole__tags">
-                        {% for Tag in Product.Tags %}
-                            <li class="ec-productRole__tag tag_{{ Tag.id }}">{{ Tag }}</li>
-                        {% endfor %}
-                    </ul>
-                    {# 通常価格 #}
-                    {% if Product.hasProductClass -%}
-                        <div class="ec-productRole__priceRegular">
-                            {% if Product.getPrice01Min is not null and Product.getPrice01IncTaxMin == Product.getPrice01IncTaxMax %}
-                                <span class="ec-productRole__priceRegularPrice">{{ 'front.product.normal_price'|trans }}：<span class="price01-default">{{ Product.getPrice01IncTaxMin|price }}</span></span>
-                                <span class="ec-productRole__priceRegularTax">{{ 'common.tax_include'|trans }}</span>
-                            {% elseif Product.getPrice01Min is not null and Product.getPrice01Max is not null %}
-                                <span class="ec-productRole__priceRegularPrice">{{ 'front.product.normal_price'|trans }}：<span class="price01-default">{{ Product.getPrice01IncTaxMin|price }}～ {{ Product.getPrice01IncTaxMax|price }}</span></span>
-                                <span class="ec-productRole__priceRegularTax">{{ 'common.tax_include'|trans }}</span>
-                            {% endif %}
-                        </div>
-                    {% else %}
-                        {% if Product.getPrice01Max is not null %}
-                            <span class="ec-productRole__priceRegularPrice">{{ 'front.product.normal_price'|trans }}：{{ Product.getPrice01IncTaxMin|price }}</span>
-                            <span class="ec-productRole__priceRegularTax">{{ 'common.tax_include'|trans }}</span>
-                        {% endif %}
-                    {% endif %}
-                    {# 販売価格 #}
-                    <div class="ec-productRole__price">
-                        {% if Product.hasProductClass -%}
-                            {% if Product.getPrice02IncTaxMin == Product.getPrice02IncTaxMax %}
-                                <div class="ec-price">
-                                    <span class="ec-price__price price02-default">{{ Product.getPrice02IncTaxMin|price }}</span>
-                                    <span class="ec-price__tax">{{ 'common.tax_include'|trans }}</span>
-                                </div>
-                            {% else %}
-                                <div class="ec-price">
-                                    <span class="ec-price__price price02-default">{{ Product.getPrice02IncTaxMin|price }} ～ {{ Product.getPrice02IncTaxMax|price }}</span>
-                                    <span class="ec-price__tax">{{ 'common.tax_include'|trans }}</span>
-                                </div>
-                            {% endif %}
-                        {% else %}
-                            <div class="ec-price">
-                                <span class="ec-price__price">{{ Product.getPrice02IncTaxMin|price }}</span>
-                                <span class="ec-price__tax">{{ 'common.tax_include'|trans }}</span>
-                            </div>
-                        {% endif %}
-                    </div>
-                    {# 商品コード #}
-                    {% if Product.code_min is not empty %}
-                        <div class="ec-productRole__code">
-                            {{ 'front.product.code'|trans }}： <span class="product-code-default">{{ Product.code_min }}{% if Product.code_min != Product.code_max %} ～ {{ Product.code_max }}{% endif %}</span>
-                        </div>
-                    {% endif %}
-                    {# 関連カテゴリ #}
-                    {% if Product.ProductCategories is not empty %}
-                        <div class="ec-productRole__category">
-                            <div>{{ 'front.product.related_category'|trans }}</div>
-                            <ul>
-                                {% for ProductCategory in Product.ProductCategories %}
-                                    {# このカテゴリの子孫が商品に紐づいているかをチェック（子孫があれば非表示） #}
-                                    {% set is_deepest = true %}
-                                    {% for OtherCategory in Product.ProductCategories %}
-                                        {% if OtherCategory.Category.hierarchy > ProductCategory.Category.hierarchy %}
-                                            {% for PathCategory in OtherCategory.Category.path %}
-                                                {% if PathCategory.id == ProductCategory.Category.id %}
-                                                    {% set is_deepest = false %}
-                                                {% endif %}
-                                            {% endfor %}
-                                        {% endif %}
-                                    {% endfor %}
-                                    {% if is_deepest %}
-                                        <li>
-                                            {% for ParentCategory in ProductCategory.Category.path %}
-                                                <a href="{{ url('product_list') }}?category_id={{ ParentCategory.id }}">{{ ParentCategory.name }}</a>{% if not loop.last %} &gt; {% endif %}
-                                            {% endfor %}
-                                        </li>
-                                    {% endif %}
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    {% endif %}
-                    <form action="{{ url('product_add_cart', {id:Product.id}) }}" method="post" id="form1" name="form1">
-                        {% if Product.stock_find %}
-                            <div class="ec-productRole__actions">
-                                {% if form.classcategory_id1 is defined %}
-                                    <div class="ec-select">
-                                        {{ form_row(form.classcategory_id1) }}
-                                        {{ form_errors(form.classcategory_id1) }}
-                                    </div>
-                                    {% if form.classcategory_id2 is defined %}
-                                        <div class="ec-select">
-                                            {{ form_row(form.classcategory_id2) }}
-                                            {{ form_errors(form.classcategory_id2) }}
-                                        </div>
-                                    {% endif %}
-                                {% endif %}
-                                <div class="ec-numberInput"><span>{{ 'common.quantity'|trans }}</span>
-                                    {{ form_widget(form.quantity) }}
-                                    {{ form_errors(form.quantity) }}
-                                </div>
-                            </div>
-                            <div class="ec-productRole__btn">
-                                <button type="submit" class="ec-blockBtn--action add-cart">
-                                    {{ 'front.product.add_cart'|trans }}
-                                </button>
-                            </div>
-                        {% else %}
-                            <div class="ec-productRole__btn">
-                                <button type="button" class="ec-blockBtn--action" disabled="disabled">
-                                    {{ 'front.product.out_of_stock'|trans }}
-                                </button>
-                            </div>
-                        {% endif %}
-
-                        {{ form_rest(form) }}
-                    </form>
-                    <div class="ec-modal">
-                        <div class="ec-modal-overlay">
-                            <div class="ec-modal-wrap">
-                                <span class="ec-modal-close"><span class="ec-icon"><img src="{{ asset('assets/icon/cross-dark.svg') }}" alt=""/></span></span>
-                                <div id="ec-modal-header" class="text-center">{{ 'front.product.add_cart_complete'|trans }}</div>
-                                <div class="ec-modal-box">
-                                    <div class="ec-role">
-                                        <span class="ec-inlineBtn--cancel">{{ 'front.product.continue'|trans }}</span>
-                                        <a href="{{ url('cart') }}" class="ec-inlineBtn--action">{{ 'common.go_to_cart'|trans }}</a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% if BaseInfo.option_favorite_product %}
-                        {% if is_favorite == false %}
-                            <form action="{{ url('product_add_favorite', {id:Product.id}) }}" method="post">
-                                <div class="ec-productRole__btn">
-                                    <button type="submit" id="favorite" class="ec-blockBtn--cancel">
-                                        {{ 'front.product.add_favorite'|trans }}
-                                    </button>
-                                </div>
-                            </form>
-                        {% else %}
-                            <div class="ec-productRole__btn">
-                                <a href="{{ url('product_delete_favorite', {id:Product.id}) }}"
-                                   id="favorite"
-                                   class="ec-blockBtn--cancel"
-                                   {{ csrf_token_for_anchor() }}
-                                   data-method="delete"
-                                   data-message="{{ 'front.product.delete_favorite_confirm'|trans }}">
-                                    {{ 'front.product.delete_favorite'|trans }}
-                                </a>
-                            </div>
-                        {% endif %}
-                    {% endif %}
-                    <div class="ec-productRole__description">{{ Product.description_detail|purify|nl2br }}
-                    </div>
+<div class="ec-productRole">
+    <div class="ec-grid2">
+        <div class="ec-grid2__cell ec-productRole__img">
+            <div class="curtain-gallery-sticky">
+                <div id="main_image_area" class="curtain-main-image">
+                    <img src="{{ asset(Product.MainFileName|default('no_image.png'), 'save_image') }}" id="main_image">
                 </div>
             </div>
         </div>
-        {% if Product.freearea %}
-             <div class="ec-productRole__description">
-                 {{ include(template_from_string(Product.freearea), sandboxed = true) }}
-            </div>
-        {% endif %}
+
+        <div class="ec-grid2__cell ec-productRole__description">
+            <form name="form1" id="form1" method="post" action="{{ url('product_add_cart', {id:Product.id}) }}">
+                <h1 class="ec-productRole__title">{{ Product.name }}</h1>
+                
+                <div class="price-display-area">
+                    <p class="small text-muted">現在のカスタマイズ価格</p>
+                    <span id="display_price" class="ec-price">¥0</span>
+                    <span class="ec-tax">税込</span>
+                </div>
+
+                <div class="curtain-custom-options">
+                    <section class="option-group">
+                        <h3 style="display: flex; align-items: center; gap: 10px;">
+                            品番： 
+                            <span id="display_color_name" style="font-weight: normal; font-size: 14px; color: #333;">選択してください</span>
+                            <span class="badge-req" style="margin-left: auto;">必須</span>
+                        </h3>
+                        <div class="color-grid">
+                            {% set is_first_radio = true %}
+                            {% for Class in Product.ProductClasses %}
+                                {% if Class.code is not empty %}
+                                    <label class="color-chip">
+                                        <input type="radio" name="dummy_color_radio" 
+                                            value="{{ Class.ClassCategory1 ? Class.ClassCategory1.id : '' }}" 
+                                            data-class-id="{{ Class.id }}" 
+                                            data-code="{{ Class.code }}" 
+                                            data-price="{{ Class.price02|default(0)|number_format(0, '.', '') }}" {# ←ここを追加 #}
+                                            data-name="{{ Class.ClassCategory1 ? Class.ClassCategory1.name : Class.code }}"
+                                            {% if is_first_radio %}checked{% set is_first_radio = false %}{% endif %} required>
+                                        <span class="chip-label">{{ Class.code }}</span>
+                                    </label>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </section>
+
+                    <section class="option-group">
+                        <h3>サイズ選択</h3>
+                        <div class="slider-container">
+                            <p>幅：<strong id="val-width">100</strong>cm</p>
+                            <input type="range" id="slider-width" min="40" max="400" value="100">
+                            <p class="mt-3">丈：<strong id="val-height">100</strong>cm</p>
+                            <input type="range" id="slider-height" min="40" max="300" value="100">
+                        </div>
+                    </section>
+
+                    <div class="grid-2-col" style="display: flex; gap: 20px;">
+                        <div style="flex:1;">
+                            <h3>ヒダ形状</h3>
+                            <select id="opt-pleats" class="form-control">
+                                <option value="1.0">フラットカーテン</option>
+                                <option value="1.5">1.5倍ひだ</option>
+                                <option value="2.0">2.0倍ひだ</option>
+                            </select>
+                        </div>
+                        <div style="flex:1;">
+                            <h3>形態安定加工</h3>
+                            <select id="opt-memory" class="form-control">
+                                <option value="no" data-rate="0">なし</option>
+                                <option value="yes" data-rate="0.1">あり (+10%)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <h3>数量</h3>
+                        <input type="number" id="visible_quantity" value="1" min="1" class="form-control" style="width: 100px;">
+                    </div>
+
+                    <section class="cart-action-area mt-5" style="border-top: 2px solid #333; padding-top: 20px;">
+                        <label class="caution-check" style="display: block; margin-bottom: 20px;">
+                            <input type="checkbox" id="agree_check">
+                            <span style="font-weight: bold; margin-left: 8px;">ご注意事項を確認しました</span>
+                        </label>
+                        <button type="submit" id="add_to_cart" class="btn-cart add-cart ec-blockBtn--action" style="width:100%; padding:20px;" disabled>
+                            カートに入れる
+                        </button>
+                    </section>
+                </div>
+
+                <div style="display: none;" id="eccube_standard_form_wrapper">
+                    <div id="eccube_standard_form">
+                        {{ form_widget(form) }}
+                        {# ← ここにあった curtain_width などを削除 #}
+                    </div>
+                    {# --- ここ（formの枠の外）に移動させる --- #}
+                    <input type="hidden" id="hidden_curtain_width">
+                    <input type="hidden" id="hidden_curtain_height">
+                    <input type="hidden" id="hidden_curtain_pleats">
+                    <input type="hidden" id="hidden_curtain_memory">
+                </div>
+            </form>
+        </div>
     </div>
+</div>
+
+<div class="ec-modal" style="display:none;">
+    <div class="ec-modal-overlay"></div>
+    <div class="ec-modal-wrap">
+        <div class="ec-modal-close">×</div>
+        <div class="ec-modal-header" id="ec-modal-header">カートに追加しました。</div>
+        <div style="margin-top: 20px;">
+            <a href="{{ url('cart') }}" class="btn-cart ec-blockBtn--action" style="padding: 10px 20px; background: #333; color: #fff; text-decoration: none; border-radius: 4px;">カートを見る</a>
+        </div>
+    </div>
+</div>
 {% endblock %}

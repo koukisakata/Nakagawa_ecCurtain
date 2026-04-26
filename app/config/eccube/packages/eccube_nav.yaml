@@ -31,6 +31,9 @@ parameters:
                 category_csv_import:
                     name: admin.product.category_csv_upload
                     url: admin_product_category_csv_import
+                admin_curtain_price_upload:
+                    name: 'カーテン価格表更新'
+                    url: admin_curtain_price_upload
         order:
             name: admin.order.order_management
             icon: fa-shopping-cart

@@ -1,0 +1,84 @@
+{% extends '@admin/default_frame.twig' %}
+
+{% set menus = ['product', 'admin_curtain_price_upload'] %}
+
+{% block title %}カーテン価格表アップロード{% endblock %}
+{% block sub_title %}商品管理{% endblock %}
+
+{% block main %}
+    <form method="post" action="{{ url('admin_curtain_price_upload') }}" enctype="multipart/form-data">
+        {{ form_widget(form._token) }}
+        
+        <div class="c-contentsArea__cols">
+            <div class="c-contentsArea__primaryCol">
+                
+                {# 1. アップロード用のカード #}
+                <div class="card border-default mb-4">
+                    <div class="card-header"><h3 class="card-title">CSVファイル更新</h3></div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-3"><span>CSVファイルを選択</span></div>
+                            <div class="col-9">
+                                {{ form_widget(form.csv_file) }}
+                                {{ form_errors(form.csv_file) }}
+                                <p class="small text-muted mt-2">※ A1001,40,40,1.0,5000 の形式のCSVをアップロードしてください。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# 2. プレビュー表のカード（ここへ移動させました） #}
+                {% if csvData is defined and csvData|length > 0 %}
+                    <div class="card rounded border-0 mb-4">
+                        <div class="card-header">
+                            <div class="d-inline-block">
+                                <span class="card-title">現在の登録内容 (プレビュー: 先頭100件)</span>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            {# 縦スクロール用の設定 #}
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-striped table-sm mb-0">
+                                    {# 表のヘッダー（CSVの1行目）見出しを固定 #}
+                                    <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                        <tr>
+                                            {% for header in csvData[0] %}
+                                                <th>{{ header }}</th>
+                                            {% endfor %}
+                                        </tr>
+                                    </thead>
+                                    {# 表のデータ（CSVの2行目以降） #}
+                                    <tbody>
+                                        {% for i in 1..(csvData|length - 1) %}
+                                            {% if csvData[i] is defined %}
+                                            <tr>
+                                                {% for col in csvData[i] %}
+                                                    <td>{{ col }}</td>
+                                                {% endfor %}
+                                            </tr>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% elseif csvData is defined and csvData|length == 0 %}
+                    <div class="alert alert-info mt-4">現在登録されている価格表データはありません。</div>
+                {% endif %}
+
+            </div>
+        </div>
+
+        {# 3. 固定フッター（青い更新ボタン） #}
+        <div class="c-conversionArea">
+            <div class="c-conversionArea__container">
+                <div class="row justify-content-between align-items-center">
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-ec-conversion px-5">この内容で更新する</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+{% endblock %}

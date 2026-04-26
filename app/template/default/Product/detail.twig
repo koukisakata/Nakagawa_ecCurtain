@@ -1,0 +1,607 @@
+{# 詳細ページ：糸のカラーを独立定義版 #}
+
+{% extends 'default_frame.twig' %}
+
+{% set body_class = 'product_page' %}
+
+{% block stylesheet %}
+    <style>
+        body { padding-bottom: 110px; background-color: #f8f9fa; }
+        @media screen and (max-width: 768px) { body { padding-bottom: 140px; } }
+
+        .thumb-scroll { overflow-x: auto; scroll-behavior: smooth; -ms-overflow-style: none; scrollbar-width: none; }
+        .thumb-scroll::-webkit-scrollbar { display: none; }
+        .thumb-item { flex: 0 0 25%; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+        .thumb-item.active { border-color: #007bff; }
+
+        .custom-radio-img input[type="radio"] { display: none; }
+        .custom-radio-img label { cursor: pointer; border: 2px solid #eee; transition: all 0.2s; }
+        .custom-radio-img input[type="radio"]:checked + label { border-color: #007bff; box-shadow: 0 0 8px rgba(0,123,255,0.2); }
+        .custom-radio-img input[type="radio"]:checked + label::after {
+            content: '✓'; position: absolute; top: 5px; right: 5px; background: #007bff; color: #fff; 
+            width: 18px; height: 18px; border-radius: 50%; font-size: 11px; line-height: 18px; text-align: center;
+        }
+
+        .row-tight { margin-left: -5px; margin-right: -5px; }
+        .row-tight > [class^="col-"], .row-tight > [class*=" col-"] { padding-left: 5px; padding-right: 5px; }
+
+        .slider-custom { -webkit-appearance: none; width: 100%; height: 4px; background: #e0e0e0; border-radius: 2px; outline: none; padding: 0; margin: 0; }
+        .slider-custom::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #4bc0c8; cursor: pointer; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+        .slider-custom::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #4bc0c8; cursor: pointer; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+        
+        .btn-circle { width: 36px; height: 36px; padding: 0; display: flex; justify-content: center; align-items: center; border-color: #ccc; color: #666; flex-shrink: 0; background-color: #fff; }
+        .btn-circle:hover { background-color: #f1f1f1; color: #333; border-color: #bbb; }
+
+        .fw-black { font-weight: 900 !important; }
+    </style>
+{% endblock %}
+
+{% block javascript %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const curtainMatrix = {{ JsonMatrix|raw }};
+            
+            const priceDisplays = document.querySelectorAll('.display-price');
+            const colorNameDisplays = document.querySelectorAll('.display-color-name');
+            const quantityInputs = document.querySelectorAll('.visible-quantity');
+            
+            const widthSlider = document.getElementById('slider-width');
+            const heightSlider = document.getElementById('slider-height');
+            const memorySelect = document.getElementById('opt-memory');
+            const customCurtainSelect = document.getElementById('opt-custom-curtain');
+            const agreeCheck = document.getElementById('agree_check');
+            const cartBtn = document.getElementById('add_to_cart');
+            
+            const btnWidthMinus = document.getElementById('btn-width-minus');
+            const btnWidthPlus = document.getElementById('btn-width-plus');
+            const btnHeightMinus = document.getElementById('btn-height-minus');
+            const btnHeightPlus = document.getElementById('btn-height-plus');
+            
+            window.currentCalculatedPrice = 0;
+
+            window.syncToHiddenForm = function() {
+                const selectedRadio = document.querySelector('input[name="dummy_color_radio"]:checked');
+                if (!selectedRadio) return;
+
+                const fillField = (targetName, value) => {
+                    const el = document.querySelector(`#eccube_standard_form [name="${targetName}"]`);
+                    if (el) el.value = value;
+                };
+
+                fillField('ProductClass', selectedRadio.dataset.classId); 
+                fillField('product_class_id', selectedRadio.dataset.classId); 
+                fillField('quantity', quantityInputs.length > 0 ? quantityInputs[0].value : 1); 
+                fillField('classcategory_id1', selectedRadio.value);
+
+                const syncRadio = (radioName, hiddenId) => {
+                    const selected = document.querySelector(`input[name="${radioName}"]:checked`);
+                    if (selected) document.getElementById(hiddenId).value = selected.value;
+                };
+                
+                syncRadio('tassel_radio', 'hidden_curtain_tassel');
+                syncRadio('pleats_radio', 'hidden_curtain_pleats');
+                syncRadio('open_radio', 'hidden_curtain_open');
+                syncRadio('hook_radio', 'hidden_curtain_hook');
+                syncRadio('custom_curtain_color_radio', 'hidden_custom_curtain_color');
+
+                const curtainFields = {
+                    'hidden_curtain_width': 'slider-width',
+                    'hidden_curtain_height': 'slider-height',
+                    'hidden_curtain_memory': 'opt-memory',
+                    'hidden_custom_curtain': 'opt-custom-curtain'
+                };
+                Object.keys(curtainFields).forEach(hid => {
+                    const src = document.getElementById(curtainFields[hid]);
+                    const target = document.getElementById(hid);
+                    if (src && target) target.value = src.value;
+                });
+            };
+
+            function updateGallery(fabricCode) {
+                const mainImg = document.getElementById('main_image');
+                const thumbList = document.getElementById('thumb_list');
+                const basePath = '/html/template/default/assets/img/curtain/products/';
+                if (!mainImg || !thumbList) return;
+
+                thumbList.innerHTML = '';
+                mainImg.src = `${basePath}${fabricCode}_main.png`;
+
+                const addThumbnail = (src, isActive) => {
+                    const div = document.createElement('div');
+                    div.className = 'thumb-item bg-white p-1' + (isActive ? ' active' : '');
+                    div.innerHTML = `<img src="${src}" class="img-fluid w-100 h-100" style="object-fit:cover;">`;
+                    div.onclick = function() {
+                        mainImg.src = src;
+                        document.querySelectorAll('.thumb-item').forEach(el => el.classList.remove('active'));
+                        this.classList.add('active');
+                    };
+                    thumbList.appendChild(div);
+                }
+
+                addThumbnail(mainImg.src, true);
+                for (let i = 1; i <= 8; i++) {
+                    const subSrc = `${basePath}${fabricCode}_sub${i}.png`;
+                    const tempImg = new Image();
+                    tempImg.onload = function() { addThumbnail(subSrc, false); };
+                    tempImg.src = subSrc;
+                }
+            }
+
+            function calculate() {
+                const selectedRadio = document.querySelector('input[name="dummy_color_radio"]:checked');
+                if (!selectedRadio) return;
+
+                const currentFabricCode = selectedRadio.dataset.code;
+
+                if (window.lastCode !== currentFabricCode) {
+                    updateGallery(currentFabricCode);
+                    window.lastCode = currentFabricCode;
+                }
+                const btnPrev = document.getElementById('btn_prev');
+                const btnNext = document.getElementById('btn_next');
+                const thumbList = document.getElementById('thumb_list');
+
+                if (btnPrev && btnNext && thumbList) {
+                    btnNext.onclick = () => { thumbList.scrollLeft += (thumbList.clientWidth / 2); };
+                    btnPrev.onclick = () => { thumbList.scrollLeft -= (thumbList.clientWidth / 2); };
+                }
+
+                const colorName = selectedRadio.dataset.name;
+                const basePrice = parseFloat(selectedRadio.dataset.price) || 0;
+
+                document.querySelectorAll('.tassel-item').forEach(item => {
+                    const compatibleFabrics = item.dataset.compatibleFabrics;
+                    if (compatibleFabrics === 'all' || (compatibleFabrics && compatibleFabrics.split(',').includes(currentFabricCode))) {
+                        item.classList.remove('d-none');
+                    } else {
+                        item.classList.add('d-none');
+                        const radio = item.querySelector('input');
+                        if (radio && radio.checked) document.querySelector('input[name="tassel_radio"][value="共生地タッセル"]').checked = true;
+                    }
+                });
+
+                document.getElementById('val-width').textContent = widthSlider.value;
+                document.getElementById('val-height').textContent = heightSlider.value;
+                
+                colorNameDisplays.forEach(el => el.textContent = colorName);
+
+                const matchingImg = document.getElementById('img-tassel-matching');
+                const mainImg = document.getElementById('main_image');
+                if (matchingImg && mainImg) matchingImg.src = mainImg.src;
+                
+                const matchingText = document.getElementById('text-tassel-matching');
+                if (matchingText) matchingText.textContent = '共生地（' + colorName + '）';
+
+                const getSelected = (name) => document.querySelector(`input[name="${name}"]:checked`);
+                
+                const sTassel = getSelected('tassel_radio');
+                const tasselPrice = sTassel ? parseFloat(sTassel.dataset.price || 0) : 0;
+                document.getElementById('display_tassel_name').textContent = sTassel ? sTassel.dataset.name : '共生地タッセル';
+                
+                const sOpen = getSelected('open_radio');
+                document.getElementById('display_open_name').textContent = sOpen ? sOpen.value : '両開き';
+
+                const sPleats = getSelected('pleats_radio');
+                const pleatsValue = sPleats ? sPleats.value : "1.0";
+                document.getElementById('display_pleats_name').textContent = (sPleats ? sPleats.dataset.name : 'フラット') + '（' + pleatsValue + '倍ヒダ）';
+
+                const sHook = getSelected('hook_radio');
+                document.getElementById('display_hook_name').textContent = sHook ? sHook.value : 'Aフック';
+
+                document.getElementById('display_custom_curtain_name').textContent = customCurtainSelect.value !== "" ? customCurtainSelect.value : '選択してください';
+                
+                const sCustomColor = getSelected('custom_curtain_color_radio');
+                document.getElementById('display_custom_curtain_color_name').textContent = sCustomColor ? sCustomColor.value : '選択してください';
+
+                const w = parseInt(widthSlider.value);
+                const h = parseInt(heightSlider.value);
+                const wLimit = Math.ceil(w / 40) * 40;
+                const hLimit = Math.ceil(h / 40) * 40;
+                const pleatKey = parseFloat(pleatsValue);
+
+                let price = 0;
+                try {
+                    const row = curtainMatrix[currentFabricCode];
+                    if (row && row[wLimit] && row[wLimit][hLimit]) {
+                        price = parseFloat(row[wLimit][hLimit][pleatsValue] || 0);
+                    }
+                } catch (e) {}
+
+                if (price === 0 && basePrice > 0) { price = basePrice * (w / 100) * (h / 100); }
+
+                if (price > 0) {
+                    const memoryRate = parseFloat(memorySelect.options[memorySelect.selectedIndex].dataset.rate || 0);
+                    price = (price * pleatKey) + (price * memoryRate) + tasselPrice;
+                    
+                    const formattedStr = '¥' + Math.floor(price).toLocaleString();
+                    priceDisplays.forEach(el => el.textContent = formattedStr);
+                    
+                    window.currentCalculatedPrice = Math.floor(price);
+                } else {
+                    priceDisplays.forEach(el => el.textContent = '価格未設定');
+                    window.currentCalculatedPrice = 0;
+                }
+                window.syncToHiddenForm();
+            }
+
+            [widthSlider, heightSlider, memorySelect, customCurtainSelect].forEach(el => el && el.addEventListener('input', calculate));
+            ['dummy_color_radio', 'tassel_radio', 'open_radio', 'pleats_radio', 'hook_radio', 'custom_curtain_color_radio'].forEach(name => {
+                document.querySelectorAll(`input[name="${name}"]`).forEach(r => r.addEventListener('change', calculate));
+            });
+
+            if(agreeCheck) agreeCheck.addEventListener('change', () => { cartBtn.disabled = !agreeCheck.checked; });
+            
+            quantityInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    quantityInputs.forEach(other => { if (other !== this) other.value = this.value; });
+                    calculate();
+                });
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') { e.preventDefault(); return false; }
+                });
+            });
+
+            const adjustSlider = (slider, amount) => {
+                let val = parseInt(slider.value) + amount;
+                if (val < parseInt(slider.min)) val = parseInt(slider.min);
+                if (val > parseInt(slider.max)) val = parseInt(slider.max);
+                slider.value = val;
+                calculate();
+            };
+
+            if (btnWidthMinus) btnWidthMinus.addEventListener('click', () => adjustSlider(widthSlider, -1));
+            if (btnWidthPlus) btnWidthPlus.addEventListener('click', () => adjustSlider(widthSlider, 1));
+            if (btnHeightMinus) btnHeightMinus.addEventListener('click', () => adjustSlider(heightSlider, -1));
+            if (btnHeightPlus) btnHeightPlus.addEventListener('click', () => adjustSlider(heightSlider, 1));
+
+            calculate();
+        });
+    </script>
+
+    <script>
+        $(function() {
+            $('.add-cart').on('click', function(event) {
+                event.preventDefault();
+                if (typeof window.syncToHiddenForm === 'function') window.syncToHiddenForm();
+
+                const curtainParams = $.param({
+                    curtain_width: $('#slider-width').val(),
+                    curtain_height: $('#slider-height').val(),
+                    curtain_pleats: $('input[name="pleats_radio"]:checked').val(),
+                    curtain_memory: $('#opt-memory').val(),
+                    curtain_open: $('input[name="open_radio"]:checked').val(),
+                    curtain_hook: $('input[name="hook_radio"]:checked').val(),
+                    curtain_tassel: $('input[name="tassel_radio"]:checked').val(),
+                    curtain_custom: $('#opt-custom-curtain').val(),
+                    curtain_custom_color: $('input[name="custom_curtain_color_radio"]:checked').val(),
+                    curtain_price: window.currentCalculatedPrice
+                });
+
+                $.ajax({
+                    url: $('#form1').attr('action') + '?' + curtainParams,
+                    type: 'POST',
+                    data: $('#eccube_standard_form :input').serialize(),
+                    dataType: 'json',
+                    beforeSend: function() { $('.add-cart').prop('disabled', true); }
+                }).done(function(data) {
+                    if (data.done) {
+                        $.each(data.messages, function() { $('#ec-modal-header').text(this); });
+                        $('#cartModal').modal('show');
+                        $.ajax({ url: "{{ url('block_cart') }}", type: 'GET', dataType: 'html' })
+                         .done(function(html) { $('.ec-headerRole__cart').html(html); });
+                    } else { alert(data.messages.join('\n')); }
+                }).fail(function() { alert('システムエラーが発生しました。'); })
+                  .always(function() { $('.add-cart').prop('disabled', false); });
+            });
+        });
+    </script>
+{% endblock %}
+
+{% block main %}
+<div class="container pt-4">
+    <div class="row">
+        
+        <div class="col-lg-6 col-md-6 mb-4 pr-lg-5 pr-md-4">
+            <div class="sticky-top" style="top: 20px; z-index: 100;">
+                <div class="border border-dark bg-white overflow-hidden mb-2 shadow-sm">
+                    <img src="" id="main_image" class="img-fluid w-100" style="object-fit: contain;">
+                </div>
+                <div class="position-relative d-flex align-items-center shadow-sm rounded">
+                    <button type="button" id="btn_prev" class="btn btn-dark btn-sm rounded-circle position-absolute d-flex align-items-center justify-content-center" style="left:5px; z-index:10; opacity:0.7; width:30px; height:30px;">‹</button>
+                    <div id="thumb_list" class="d-flex w-100 thumb-scroll bg-white rounded"></div>
+                    <button type="button" id="btn_next" class="btn btn-dark btn-sm rounded-circle position-absolute d-flex align-items-center justify-content-center" style="right:5px; z-index:10; opacity:0.7; width:30px; height:30px;">›</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 col-md-6">
+            <form name="form1" id="form1" method="post" action="{{ url('product_add_cart', {id:Product.id}) }}">
+                <h1 class="h3 fw-black mb-2">{{ Product.name }}</h1>
+
+                {% if Product.Tags is not empty %}
+                    <div class="mb-3 d-flex flex-wrap">
+                        {% for Tag in Product.Tags %}
+                            {% set badge_class = 'badge p-2 mx-1 mb-2 fw-black shadow-sm' %}
+                            {% set inline_style = 'font-size: 0.8rem;' %}
+
+                            {% if Tag.name == 'おすすめ商品' %}
+                                {% set inline_style = inline_style ~ ' background-color: #f7df26; color: #000; border-radius: 20px;' %}
+                            {% elseif Tag.name == '遮光1級' %}
+                                {% set inline_style = inline_style ~ ' background-color: #fff; color: #000; border: 1px solid #000; border-radius: 20px;' %}
+                            {% elseif Tag.name == '即日配送' %}
+                                {% set inline_style = inline_style ~ ' background-color: #62c3e2; color: #fff; border-radius: 20px;' %}
+                            {% elseif Tag.name == 'カスタムカーテン' %}
+                                {% set inline_style = inline_style ~ ' background-color: #f78da7; color: #fff; border-radius: 20px;' %}
+                            {% else %}
+                                {% set badge_class = badge_class ~ ' badge-dark' %}
+                                {% set inline_style = inline_style ~ ' color: #fff;' %}
+                            {% endif %}
+
+                            <span class="{{ badge_class }}" style="{{ inline_style }}">
+                                {{ Tag.name }}
+                            </span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% if Product.description_detail is not empty %}
+                    <div class="mb-4 text-dark bg-white border p-3 rounded" style="font-size: 0.95rem; line-height: 1.8;">
+                        {{ Product.description_detail|raw }}
+                    </div>
+                {% endif %}
+
+                <div class="bg-white border border-dark rounded p-4 mb-4 shadow-sm">
+                    <h3 class="h6 fw-black mb-3 border-bottom pb-2">
+                        品番： <span class="display-color-name fw-black text-dark ml-2">選択してください</span>
+                    </h3>
+                    <div class="row row-tight custom-radio-img">
+                        {% set is_first_radio = true %}
+                        {% for Class in Product.ProductClasses %}
+                            {% if Class.code is not empty %}
+                                <div class="col-4 col-sm-3 col-md-2 mb-2">
+                                    <input type="radio" name="dummy_color_radio" id="col_{{ loop.index }}"
+                                        value="{{ Class.ClassCategory1 ? Class.ClassCategory1.id : '' }}" 
+                                        data-class-id="{{ Class.id }}" data-code="{{ Class.code }}" 
+                                        data-price="{{ Class.price02|default(0)|number_format(0, '.', '') }}"
+                                        data-name="{{ Class.ClassCategory1 ? Class.ClassCategory1.name : Class.code }}"
+                                        {% if is_first_radio %}checked{% set is_first_radio = false %}{% endif %} required>
+                                    
+                                    <label for="col_{{ loop.index }}" class="d-block bg-white rounded overflow-hidden p-0 mb-1 position-relative w-100 text-center">
+                                        <div style="position: relative; width: 100%; padding-bottom: 100%;">
+                                            <img src="/html/template/default/assets/img/curtain/chips/{{ Class.code }}_chip.png"
+                                                 onerror="if(this.src.includes('.png')){this.src='/html/template/default/assets/img/curtain/chips/{{ Class.code }}_chip.jpg';}else{this.src='/upload/save_image/no_image.png';this.onerror=null;}"
+                                                 class="img-fluid" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;">
+                                        </div>
+                                    </label>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-white border border-dark rounded p-4 mb-4 shadow-sm">
+                    <h3 class="h6 fw-black mb-3 border-bottom pb-2">
+                        カーテンの開き方： <span id="display_open_name" class="fw-black text-dark ml-2">両開き</span>
+                    </h3>
+                    <div class="row row-tight custom-radio-img">
+                        <div class="col-4 mb-2"><input type="radio" name="open_radio" id="open_1" value="両開き" checked><label for="open_1" class="d-block bg-white rounded overflow-hidden px-2 py-4 mb-0 position-relative"><img src="{{ asset('assets/img/curtain/open_both.png') }}" class="img-fluid w-100"></label></div>
+                        <div class="col-4 mb-2"><input type="radio" name="open_radio" id="open_2" value="片開き（左寄せ）"><label for="open_2" class="d-block bg-white rounded overflow-hidden px-2 py-4 mb-0 position-relative"><img src="{{ asset('assets/img/curtain/open_left.png') }}" class="img-fluid w-100"></label></div>
+                        <div class="col-4 mb-2"><input type="radio" name="open_radio" id="open_3" value="片開き（右寄せ）"><label for="open_3" class="d-block bg-white rounded overflow-hidden px-2 py-4 mb-0 position-relative"><img src="{{ asset('assets/img/curtain/open_right.png') }}" class="img-fluid w-100"></label></div>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-dark rounded p-4 mb-4 shadow-sm">
+                    <h3 class="h6 fw-black mb-4 border-bottom pb-2">サイズ選択</h3>
+                    <div class="mb-5">
+                        <div class="d-flex align-items-baseline mb-2"><span class="fw-black text-dark mr-2">サイズ幅：</span><span id="val-width" class="h5 mb-0 fw-black">100</span><span class="ml-1 small fw-black text-dark">cm</span></div>
+                        <div class="d-flex justify-content-between text-muted px-5 mb-1 fw-black" style="font-size: 0.75rem;"><span>40cm</span><span>400cm</span></div>
+                        <div class="d-flex align-items-center">
+                            <button type="button" id="btn-width-minus" class="btn btn-outline-secondary rounded-circle btn-circle shadow-sm fw-black"><span style="font-size: 1.2rem; font-weight: normal;">－</span></button>
+                            <input type="range" id="slider-width" min="40" max="400" value="100" class="slider-custom flex-grow-1 mx-3">
+                            <button type="button" id="btn-width-plus" class="btn btn-outline-secondary rounded-circle btn-circle shadow-sm fw-black"><span style="font-size: 1.2rem; font-weight: normal;">＋</span></button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-baseline mb-2"><span class="fw-black text-dark mr-2">サイズ丈：</span><span id="val-height" class="h5 mb-0 fw-black">100</span><span class="ml-1 small fw-black text-dark">cm</span></div>
+                        <div class="d-flex justify-content-between text-muted px-5 mb-1 fw-black" style="font-size: 0.75rem;"><span>40cm</span><span>300cm</span></div>
+                        <div class="d-flex align-items-center">
+                            <button type="button" id="btn-height-minus" class="btn btn-outline-secondary rounded-circle btn-circle shadow-sm fw-black"><span style="font-size: 1.2rem; font-weight: normal;">－</span></button>
+                            <input type="range" id="slider-height" min="40" max="300" value="100" class="slider-custom flex-grow-1 mx-3">
+                            <button type="button" id="btn-height-plus" class="btn btn-outline-secondary rounded-circle btn-circle shadow-sm fw-black"><span style="font-size: 1.2rem; font-weight: normal;">＋</span></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-dark rounded p-4 mb-4 shadow-sm">
+                    <h3 class="h6 fw-black mb-3 border-bottom pb-2">
+                        ヒダ形状： <span id="display_pleats_name" class="fw-black text-dark ml-2">フラット（1.0倍ヒダ）</span>
+                    </h3>
+                    <div class="row row-tight custom-radio-img">
+                        <div class="col-4 mb-2"><input type="radio" name="pleats_radio" id="pleats_1" value="1.0" data-name="フラット" checked><label for="pleats_1" class="d-block bg-white rounded overflow-hidden p-0 mb-0 position-relative"><img src="{{ asset('assets/img/curtain/10.png') }}" class="img-fluid w-100"></label></div>
+                        <div class="col-4 mb-2"><input type="radio" name="pleats_radio" id="pleats_2" value="1.5" data-name="1.5倍ヒダ"><label for="pleats_2" class="d-block bg-white rounded overflow-hidden p-0 mb-0 position-relative"><img src="{{ asset('assets/img/curtain/15.png') }}" class="img-fluid w-100"></label></div>
+                        <div class="col-4 mb-2"><input type="radio" name="pleats_radio" id="pleats_3" value="2.0" data-name="2.0倍ヒダ"><label for="pleats_3" class="d-block bg-white rounded overflow-hidden p-0 mb-0 position-relative"><img src="{{ asset('assets/img/curtain/20.png') }}" class="img-fluid w-100"></label></div>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-dark rounded p-4 mb-4 shadow-sm">
+                    <h3 class="h6 fw-black mb-3 border-bottom pb-2">
+                        フック： <span id="display_hook_name" class="fw-black text-dark ml-2">Aフック</span>
+                    </h3>
+                    <div class="row row-tight custom-radio-img">
+                        <div class="col-6 mb-2"><input type="radio" name="hook_radio" id="hook_1" value="Aフック" checked><label for="hook_1" class="d-block bg-white rounded overflow-hidden p-0 mb-0 position-relative"><img src="{{ asset('assets/img/curtain/Aフック.png') }}" class="img-fluid w-100"></label></div>
+                        <div class="col-6 mb-2"><input type="radio" name="hook_radio" id="hook_2" value="Bフック"><label for="hook_2" class="d-block bg-white rounded overflow-hidden p-0 mb-0 position-relative"><img src="{{ asset('assets/img/curtain/Bフック.png') }}" class="img-fluid w-100"></label></div>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-dark rounded p-4 mb-4 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                        <h3 class="h6 fw-black mb-0">形態安定加工</h3>
+                        <span class="bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center fw-black shadow-sm" style="width: 22px; height: 22px; font-size: 0.85rem; cursor: pointer;">?</span>
+                    </div>
+                    <select id="opt-memory" class="custom-select fw-black text-dark" style="height: 3.2rem; border: 1px solid #ddd; font-size: 1rem;">
+                        <option value="no" data-rate="0">なし</option>
+                        <option value="yes" data-rate="0.1">あり (+10%)</option>
+                    </select>
+                </div>
+
+                {# ==========================================
+                   ★修正：カスタムカーテン（糸のカラーをTwig内で固定定義）
+                   ========================================== #}
+                <div class="bg-white border border-dark rounded p-4 mb-4 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="h6 fw-black mb-0">
+                            カスタムカーテン： <span id="display_custom_curtain_name" class="fw-black text-dark ml-2">選択してください</span>
+                        </h3>
+                        <span class="bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center fw-black shadow-sm" style="width: 22px; height: 22px; font-size: 0.85rem; cursor: pointer;">?</span>
+                    </div>
+                    
+                    <select id="opt-custom-curtain" class="custom-select fw-black text-dark mb-4" style="height: 3.2rem; border: 1px solid #ddd; font-size: 1rem;">
+                        <option value="" hidden selected>選択してください</option>
+                        <option value="なし">なし</option>
+                        <option value="ロックトリミング">ロックトリミング</option>
+                    </select>
+
+                    <h3 class="h6 fw-black mb-3">
+                        糸のカラー： <span id="display_custom_curtain_color_name" class="fw-black text-dark ml-2">選択してください</span>
+                    </h3>
+                    
+                    {# Twigで直接糸のカラーリストを定義（管理画面の仕様回避のため） #}
+                    {% set thread_colors = [
+                        {'code': 'white', 'name': 'ホワイト'},
+                        {'code': 'ivory', 'name': 'アイボリー'},
+                        {'code': 'beige', 'name': 'ベージュ'},
+                        {'code': 'lightgreen', 'name': 'ライトグリーン'},
+                        {'code': 'green', 'name': 'グリーン'},
+                        {'code': 'blue', 'name': 'ブルー'},
+                        {'code': 'yellow', 'name': 'イエロー'},
+                        {'code': 'orange', 'name': 'オレンジ'},
+                        {'code': 'pink', 'name': 'ピンク'},
+                        {'code': 'red', 'name': 'レッド'},
+                        {'code': 'wine', 'name': 'ワインレッド'},
+                        {'code': 'brown', 'name': 'ブラウン'}
+                    ] %}
+
+                    <div class="row row-tight custom-radio-img">
+                        {% for Thread in thread_colors %}
+                            <div class="col-4 col-sm-3 col-md-2 mb-2">
+                                <input type="radio" name="custom_curtain_color_radio" id="cc_col_{{ loop.index }}"
+                                    value="{{ Thread.name }}" 
+                                    data-name="{{ Thread.name }}"
+                                    {% if loop.first %}checked{% endif %} required
+                                >
+                                <label for="cc_col_{{ loop.index }}" class="d-block bg-white rounded overflow-hidden p-0 mb-1 position-relative w-100 text-center">
+                                    <div style="position: relative; width: 100%; padding-bottom: 100%;">
+                                        {# 糸の画像は chips フォルダの中の thread_xxx_chip.png のような形式を想定。無い場合はno_imageが表示されます #}
+                                        <img src="/html/template/default/assets/img/curtain/chips/thread_{{ Thread.code }}_chip.png"
+                                             onerror="if(this.src.includes('.png')){this.src='/html/template/default/assets/img/curtain/chips/thread_{{ Thread.code }}_chip.jpg';}else{this.src='/upload/save_image/no_image.png';this.onerror=null;}"
+                                             class="img-fluid" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;">
+                                    </div>
+                                </label>
+                                <div class="small text-muted fw-black text-center" style="font-size: 0.7rem;">{{ Thread.name }}</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-white border border-dark rounded p-4 mb-4 shadow-sm">
+                    <h3 class="h6 fw-black mb-3 border-bottom pb-2">
+                        タッセル： <span id="display_tassel_name" class="fw-black text-dark ml-2">共生地タッセル</span>
+                    </h3>
+                    <div class="row row-tight custom-radio-img">
+                        <div class="col-6 col-md-3 mb-2 tassel-item" data-compatible-fabrics="all">
+                            <input type="radio" name="tassel_radio" id="tassel_0" value="共生地タッセル" data-price="0" data-name="共生地タッセル" checked>
+                            <label for="tassel_0" class="d-block bg-white rounded overflow-hidden mb-0 position-relative">
+                                <img src="{{ asset(Product.MainFileName|default('no_image.png'), 'save_image') }}" id="img-tassel-matching" class="img-fluid w-100">
+                                <div class="text-center bg-light border-top p-1 fw-black" style="font-size: 0.65rem;" id="text-tassel-matching">共生地</div>
+                            </label>
+                        </div>
+                        {% for Tassel in TasselProducts %}
+                            <div class="col-6 col-md-3 mb-2 tassel-item" data-compatible-fabrics="{{ Tassel.search_word|default('all') }}">
+                                <input type="radio" name="tassel_radio" id="tassel_{{ loop.index }}" value="{{ Tassel.name }}" data-price="{{ Tassel.getPrice02Min }}" data-name="{{ Tassel.name }}">
+                                <label for="tassel_{{ loop.index }}" class="d-block bg-white rounded overflow-hidden mb-0 position-relative">
+                                    <img src="{{ asset(Tassel.MainFileName|default('no_image.png'), 'save_image') }}" class="img-fluid w-100">
+                                    <div class="text-center bg-light border-top p-1 fw-black" style="font-size: 0.65rem;">{{ Tassel.name }}</div>
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-white border border-dark rounded p-4 mb-4 shadow-sm">
+                    <label class="d-block mb-0 text-center" style="cursor: pointer;">
+                        <input type="checkbox" id="agree_check" class="mr-2">
+                        <span class="fw-black text-danger">オーダー品のため返品不可となります。ご注意事項を確認しました。</span>
+                    </label>
+                </div>
+                
+                <div class="bg-white mb-5">
+                    <h3 class="h6 fw-black mb-3 pb-2">
+                        品番： <span class="display-color-name fw-black text-dark ml-2">選択してください</span>
+                    </h3>
+
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="fw-black text-dark mr-3" style="font-size: 1rem;">数量</span>
+                        <input type="number" value="1" min="1" class="form-control text-center fw-black visible-quantity" style="width: 80px; font-size: 1.2rem; border-color: #ccc;">
+                    </div>
+
+                    <div class="">
+                        <div class="d-flex align-items-baseline">
+                            <span class="display-price h2 fw-black text-danger my-0">¥0</span>
+                            <span class="ml-2 fw-black small text-dark">税込</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-none" id="eccube_standard_form_wrapper">
+                    <div id="eccube_standard_form">{{ form_widget(form) }}</div>
+                    <input type="hidden" id="hidden_curtain_width">
+                    <input type="hidden" id="hidden_curtain_height">
+                    <input type="hidden" id="hidden_curtain_pleats">
+                    <input type="hidden" id="hidden_curtain_memory">
+                    <input type="hidden" id="hidden_curtain_open">
+                    <input type="hidden" id="hidden_curtain_hook">
+                    <input type="hidden" id="hidden_curtain_tassel">
+                    <input type="hidden" id="hidden_custom_curtain">
+                    <input type="hidden" id="hidden_custom_curtain_color">
+                </div>
+
+                <div class="fixed-bottom shadow-lg" style="background-color: #FFFDE8; border-top: 1px solid #f0e9cd; z-index: 1030;">
+                    <div class="container py-2 py-md-3">
+                        <div class="row align-items-center justify-content-center justify-content-md-end">
+                            <div class="col-12 col-md-auto d-flex justify-content-center align-items-center mb-2 mb-md-0">
+                                <div class="d-flex align-items-center mr-4">
+                                    <span class="fw-black text-dark mr-2" style="font-size: 1rem;">数量</span>
+                                    <input type="number" value="1" min="1" class="form-control text-center fw-black visible-quantity" style="width: 70px; font-size: 1.2rem; border-color: #ccc;">
+                                </div>
+                                <div class="d-flex align-items-baseline">
+                                    <span class="display-price fw-black" style="font-size: 2.2rem; color: #e24545; line-height: 1; letter-spacing: -1px;">¥0</span>
+                                    <span class="fw-black text-dark ml-2" style="font-size: 0.9rem;">税込</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-auto">
+                                <button type="submit" id="add_to_cart" class="btn btn-block fw-black add-cart shadow-sm" style="background-color: #e24545; color: #fff; padding: 0.8rem 3rem; border-radius: 6px; font-size: 1.1rem; border: none;" disabled>
+                                    <i class="fa fa-shopping-cart mr-2"></i>カートに入れる
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="cartModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header border-0 pb-0"><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div>
+            <div class="modal-body text-center pb-5 pt-2">
+                <h5 class="fw-black mb-4" id="ec-modal-header">カートに追加しました。</h5>
+                <a href="{{ url('cart') }}" class="btn btn-dark px-5 py-2 fw-black rounded">カートを見る</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

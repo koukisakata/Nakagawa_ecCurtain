@@ -250,12 +250,75 @@ class ProductController extends AbstractController
             $is_favorite = $this->customerFavoriteProductRepository->isFavorite($Customer, $Product);
         }
 
+        // 🌟 ここから：CSV読み込み処理（文字化け・BOM対策の最強版） 🌟
+        // 🌟 ここから：CSV読み込み＆安全なJSON変換 🌟
+        $curtainMatrix = [];
+        $csvFilePath = $this->getParameter('kernel.project_dir') . '/curtain_price.csv';
+        $debugMsg = "CSVパス: " . $csvFilePath . " | ";
+
+        if (file_exists($csvFilePath)) {
+            $debugMsg .= "✅ファイル有 | ";
+            $csvData = file_get_contents($csvFilePath);
+            $csvData = mb_convert_encoding($csvData, 'UTF-8', 'SJIS-win, UTF-8, auto');
+            $csvData = str_replace(["\r\n", "\r"], "\n", $csvData);
+            $lines = explode("\n", $csvData);
+            
+            if (count($lines) > 0) {
+                $headers = str_getcsv(array_shift($lines));
+                $matchCount = 0;
+                
+                foreach ($lines as $line) {
+                    if (trim($line) === '') continue;
+                    $row = str_getcsv($line);
+                    if (count($row) < 3) continue;
+                    
+                    // 品番から目に見えないゴミ文字(BOM等)を徹底的に除去
+                    $code = trim(str_replace("\xEF\xBB\xBF", '', $row[0]));
+                    $code = preg_replace('/[\x00-\x1F\x7F]/', '', $code);
+                    if (empty($code)) continue;
+
+                    if (!isset($curtainMatrix[$code])) $curtainMatrix[$code] = [];
+                    
+                    for ($i = 3; $i < count($headers); $i++) {
+                        if (!isset($headers[$i]) || !isset($row[$i])) continue;
+                        $header = trim($headers[$i]);
+                        if (preg_match('/^W(\d+)H(\d+)_P(\d+)$/', $header, $matches)) {
+                            $matchCount++;
+                            $w = (int)$matches[1];
+                            $h = (int)$matches[2];
+                            $p = number_format($matches[3] / 10, 1);
+                            
+                            if (!isset($curtainMatrix[$code][$w])) $curtainMatrix[$code][$w] = [];
+                            if (!isset($curtainMatrix[$code][$w][$h])) $curtainMatrix[$code][$w][$h] = [];
+                            
+                            $curtainMatrix[$code][$w][$h][$p] = (int)trim($row[$i]);
+                        }
+                    }
+                }
+                $debugMsg .= "✅抽出数: " . $matchCount . " | 品番リスト: " . implode(",", array_keys($curtainMatrix));
+            }
+        } else {
+            $debugMsg .= "❌ファイルが見つかりません。";
+        }
+
+        // 【超重要】PHP側で安全にJSON文字列へ変換する
+        $jsonMatrix = json_encode($curtainMatrix, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($jsonMatrix === false) {
+            $debugMsg .= " | ❌JSON変換エラー: " . json_last_error_msg();
+            $jsonMatrix = '{}';
+        } else if (empty($curtainMatrix)) {
+            $jsonMatrix = '{}';
+        }
+        // 🌟 ここまで 🌟
+
         return [
             'title' => $this->title,
             'subtitle' => $Product->getName(),
             'form' => $builder->getForm()->createView(),
             'Product' => $Product,
             'is_favorite' => $is_favorite,
+            'JsonMatrix' => $jsonMatrix, // 👈 変換済みの文字列を渡す
+            'DebugCsv' => $debugMsg,
         ];
     }
 
@@ -374,6 +437,7 @@ class ProductController extends AbstractController
             [
                 'product' => $Product,
                 'id_add_product_id' => false,
+                'allow_extra_fields' => true,
             ]
         );
 
@@ -391,6 +455,16 @@ class ProductController extends AbstractController
         $form->handleRequest($request);
 
         if (!$form->isValid()) {
+            // 404 を投げる代わりに、エラー内容を Ajax で返して確認する
+            if ($request->isXmlHttpRequest()) {
+                $errors = [];
+                foreach ($form->getErrors(true) as $error) {
+                    $errors[] = $error->getMessage();
+                }
+                // もしエラーが空なら「データが届いていない」可能性があります
+                if (empty($errors)) { $errors[] = "フォームが正しく送信されていないか、必須項目（規格ID等）が足りません。"; }
+                return $this->json(['done' => false, 'messages' => $errors]);
+            }
             throw new NotFoundHttpException();
         }
 
@@ -400,7 +474,8 @@ class ProductController extends AbstractController
             'カート追加処理開始',
             [
                 'product_id' => $Product->getId(),
-                'product_class_id' => $addCartData['product_class_id'],
+                // 'product_class_id' を 'ProductClass' に書き換え
+                'product_class_id' => $addCartData['ProductClass'], 
                 'quantity' => $addCartData['quantity'],
             ]
         );

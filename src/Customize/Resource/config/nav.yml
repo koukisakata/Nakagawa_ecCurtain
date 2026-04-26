@@ -1,0 +1,6 @@
+eccube_nav:
+    product:
+        child:
+            admin_curtain_price_upload:
+                name: 'カーテン価格表更新'
+                url: 'admin_curtain_price_upload'
