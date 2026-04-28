@@ -158,11 +158,28 @@
                                                         <div><strong>サイズ：</strong>幅 {{ CartItem.curtain_width }}cm × 丈 {{ CartItem.curtain_height }}cm</div>
                                                         <div>
                                                             <strong>仕様：</strong>
-                                                            {{ CartItem.curtain_pleats }}倍ヒダ /
-                                                             形態安定：{{ CartItem.curtain_memory == 'yes' ? 'あり' : 'なし' }}/
-                                                             開き方：{{ CartItem.curtain_open }}/
-                                                             フック：{{ CartItem.curtain_hook }}/
-                                                             タッセル：{{ CartItem.curtain_tassel }}
+                                                            {{ CartItem.curtain_pleats }}倍ヒダ<br/>
+                                                             形態安定：{{ CartItem.curtain_memory == 'yes' ? 'あり' : 'なし' }}<br/>
+                                                             開き方：{{ CartItem.curtain_open }}<br/>
+                                                             フック：{{ CartItem.curtain_hook }}<br/>
+                                                             タッセル：{{ CartItem.curtain_tassel }}<br/>
+                                                             {% if CartItem.custom_curtain %}
+                                                                    カスタム：{{ CartItem.custom_curtain }}
+                                                                {# 「ロックトリミング」が選ばれている場合 #}
+                                                                {% if CartItem.custom_curtain == 'ロックトリミング' and CartItem.custom_curtain_color %}
+                                                                        ・{{ CartItem.custom_curtain_color }}
+                                                                {% endif %}
+
+                                                                {# 「カスタムスタイル」が選ばれている場合 #}
+                                                                {% if CartItem.custom_curtain == 'カスタムスタイル' %}
+                                                                    {% if CartItem.custom_style_position %}
+                                                                            位置：{{ CartItem.custom_style_position }}
+                                                                    {% endif %}
+                                                                    {% if CartItem.custom_combination_color %}
+                                                                            コンビネーションカラー：{{ CartItem.custom_combination_color }}
+                                                                    {% endif %}
+                                                                {% endif %}
+                                                            {% endif %}
                                                         </div>
                                                     </div>
                                                 {% endif %}

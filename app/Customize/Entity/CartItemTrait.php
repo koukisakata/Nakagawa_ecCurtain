@@ -37,6 +37,26 @@ trait CartItemTrait
      */
     private $curtain_tassel;
 
+    /**
+     * @ORM\Column(type="string", length=255, nullable=true)
+     */
+    private $custom_curtain;
+
+    /**
+     * @ORM\Column(type="string", length=255, nullable=true)
+     */
+    private $custom_curtain_color;
+
+    /**
+     * @ORM\Column(type="string", length=255, nullable=true)
+     */
+    private $custom_style_position;
+
+    /**
+     * @ORM\Column(type="string", length=255, nullable=true)
+     */
+    private $custom_combination_color;
+
     public function getCurtainWidth() { return $this->curtain_width; }
     public function setCurtainWidth($curtain_width) { $this->curtain_width = $curtain_width; return $this; }
     public function getCurtainHeight() { return $this->curtain_height; }
@@ -58,4 +78,16 @@ trait CartItemTrait
     public function getCurtainTassel() { return $this->curtain_tassel; }
 
     public function setCurtainTassel($curtain_tassel) { $this->curtain_tassel = $curtain_tassel; return $this; }
+
+    public function getCustomCurtain() { return $this->custom_curtain; }
+    public function setCustomCurtain($custom_curtain) { $this->custom_curtain = $custom_curtain; return $this; }
+
+    public function getCustomCurtainColor() { return $this->custom_curtain_color; }
+    public function setCustomCurtainColor($custom_curtain_color) { $this->custom_curtain_color = $custom_curtain_color; return $this; }
+
+    public function getCustomStylePosition() { return $this->custom_style_position; }
+    public function setCustomStylePosition($custom_style_position) { $this->custom_style_position = $custom_style_position; return $this; }
+
+    public function getCustomCombinationColor() { return $this->custom_combination_color; }
+    public function setCustomCombinationColor($custom_combination_color) { $this->custom_combination_color = $custom_combination_color; return $this; }
 }

@@ -40,6 +40,15 @@ class CurtainCartSubscriber implements EventSubscriberInterface
         $open = $request->query->get('curtain_open');
         $hook = $request->query->get('curtain_hook');
         $tassel = $request->query->get('curtain_tassel');
+        
+        // ★カスタムカーテンのデータを受け取る
+        $customCurtain = $request->query->get('curtain_custom');
+        $customCurtainColor = $request->query->get('curtain_custom_color');
+        
+        // ★追加：カスタムスタイルのデータを受け取る
+        $customStylePosition = $request->query->get('curtain_custom_style_position');
+        $customCombinationColor = $request->query->get('curtain_custom_combination_color');
+        
         log_info('カーテンデータ受信確認', ['width' => $width, 'price' => $price]);
 
         if ($width && $height) {
@@ -59,6 +68,22 @@ class CurtainCartSubscriber implements EventSubscriberInterface
                         $cartItem->setCurtainHook($hook);
                         $cartItem->setCurtainTassel($tassel);
 
+                        // ★受け取ったカスタムカーテンのデータをカートアイテムに保存する
+                        if ($customCurtain !== null) {
+                            $cartItem->setCustomCurtain($customCurtain);
+                        }
+                        if ($customCurtainColor !== null) {
+                            $cartItem->setCustomCurtainColor($customCurtainColor);
+                        }
+
+                        // ★追加：受け取ったカスタムスタイルのデータをカートアイテムに保存する
+                        if ($customStylePosition !== null) {
+                            $cartItem->setCustomStylePosition($customStylePosition);
+                        }
+                        if ($customCombinationColor !== null) {
+                            $cartItem->setCustomCombinationColor($customCombinationColor);
+                        }
+
                         if ($price) {
                             $cartItem->setCurtainPrice($price);
                             $cartItem->setPrice($price);
@@ -70,6 +95,7 @@ class CurtainCartSubscriber implements EventSubscriberInterface
             $this->cartService->save();
         }
     }
+    
     public function onCartIndexInitialize(EventArgs $event)
     {
         $carts = $this->cartService->getCarts();
