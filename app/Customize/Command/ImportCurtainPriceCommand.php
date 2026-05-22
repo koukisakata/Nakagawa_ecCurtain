@@ -26,7 +26,7 @@ class ImportCurtainPriceCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $io = new SymfonyStyle($input, $output);
-        $csvPath = 'var/import/curtain_price.csv'; 
+        $csvPath = 'var/import/curtain_price.csv';
 
         if (!file_exists($csvPath)) {
             $io->error("CSVファイルが見つかりません: {$csvPath}");
@@ -43,6 +43,11 @@ class ImportCurtainPriceCommand extends Command
                 continue;
             }
 
+            // CSVのデータ列が不足している場合はスキップ
+            if (count($row) < 4) {
+                continue;
+            }
+
             $productCode = $row[0]; // A1001など
             $ProductClass = $this->productClassRepository->findOneBy(['code' => $productCode]);
 
@@ -51,32 +56,31 @@ class ImportCurtainPriceCommand extends Command
                 continue;
             }
 
-            // 3列目以降（W...H..._P...）を解析して保存
-            for ($i = 3; $i < count($row); $i++) {
-                if (!isset($row[$i]) || $row[$i] === '') continue;
+            // ★ 修正箇所：既存のスペックデータがあれば取得し「更新」、なければ「新規作成」
+            $matrixRepository = $this->entityManager->getRepository(CurtainPriceMatrix::class);
+            $matrix = $matrixRepository->findOneBy(['ProductClass' => $ProductClass]);
 
-                // 正規表現で W(幅) H(丈) P(ヒダ*10) を抽出
-                if (preg_match('/W(\d+)H(\d+)_P(\d+)/', $header[$i], $matches)) {
-                    $matrix = new CurtainPriceMatrix();
-                    $matrix->setProductClass($ProductClass);
-                    $matrix->setWidthLimit((int)$matches[1]);
-                    $matrix->setHeightLimit((int)$matches[2]);
-                    
-                    // P10 -> 1.0, P15 -> 1.5, P20 -> 2.0 に変換
-                    $pleatsValue = (float)$matches[3] / 10;
-                    $matrix->setPleats($pleatsValue);
-                    
-                    $matrix->setPrice((float)$row[$i]);
-
-                    $this->entityManager->persist($matrix);
-                }
+            if (!$matrix) {
+                $matrix = new CurtainPriceMatrix();
+                $matrix->setProductClass($ProductClass);
             }
+
+            // ★ 修正箇所：CSVの各列からスペックを取得してセット
+            // [1]: 有効巾(mm), [2]: 縦リピート(mm), [3]: メーター単価(円)
+            $matrix->setWidthMm((int)$row[1]);
+            $matrix->setRepeatVMm((int)$row[2]);
+            $matrix->setMeterUnitPrice((float)$row[3]); // 先ほど追加したカラム
+
+            $this->entityManager->persist($matrix);
+
+            // 1件ごとにフラッシュ（メモリ不足になるほどの行数ではないですが安全のため）
             $this->entityManager->flush();
-            $this->entityManager->clear(); // メモリ節約
-            $io->text("インポート完了: {$productCode}");
+            $this->entityManager->clear(CurtainPriceMatrix::class); // メモリ節約
+
+            $io->text("インポート/更新完了: {$productCode} (m単価: {$row[3]}円)");
         }
 
-        $io->success('すべての価格データの登録が完了しました！');
+        $io->success('すべての生地スペック・単価データの登録が完了しました！');
         return 0;
     }
 }

@@ -45,6 +45,24 @@ class CurtainPriceMatrix extends AbstractEntity
      */
     private $pleats; // 1.0, 1.5, 2.0 などを保存
 
+    // ★ メーター単価を保存するためのカラムを新規追加
+    /**
+     * @ORM\Column(type="decimal", precision=12, scale=2, nullable=true)
+     */
+    private $meter_unit_price;
+
+    // ★ ゲッターとセッターを追加
+    public function getMeterUnitPrice()
+    {
+        return $this->meter_unit_price;
+    }
+
+    public function setMeterUnitPrice($meter_unit_price)
+    {
+        $this->meter_unit_price = $meter_unit_price;
+        return $this;
+    }
+
     // Getter & Setter は後ほどコマンドで自動生成するか、手動で追加します
     public function getId() { return $this->id; }
     public function getProductClass() { return $this->ProductClass; }
